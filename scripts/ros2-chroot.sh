@@ -298,6 +298,32 @@ EOF
   chown --reference="${ROOTFS_DIR}/home/${ROS_USER}" \
     "${ROOTFS_DIR}/home/${ROS_USER}/.sudo_as_admin_successful" 2>/dev/null || true
 
+  # --- X11 forwarding -------------------------------------------------------
+  # If the invoking user has DISPLAY set (e.g. logged in via 'ssh -X' or
+  # running on a local seat), copy their MIT-MAGIC-COOKIE-1 into the ros2
+  # user's $HOME inside the chroot and forward DISPLAY + XAUTHORITY. This
+  # lets GUI tools (rviz2, rqt, ...) reach the host X server without
+  # bind-mounting anything host-side.
+  local x_display="${DISPLAY:-}"
+  local x_xauth_inside=""
+  if [[ -n "${x_display}" ]]; then
+    local caller_home="${HOME:-}"
+    if [[ -n "${SUDO_USER:-}" ]]; then
+      caller_home=$(getent passwd "${SUDO_USER}" | cut -d: -f6)
+    fi
+    local caller_xauth="${XAUTHORITY:-${caller_home}/.Xauthority}"
+    if [[ -r "${caller_xauth}" ]]; then
+      local dest="${ROOTFS_DIR}/home/${ROS_USER}/.Xauthority"
+      cp -f "${caller_xauth}" "${dest}"
+      chown --reference="${ROOTFS_DIR}/home/${ROS_USER}" "${dest}"
+      chmod 0600 "${dest}"
+      x_xauth_inside="/home/${ROS_USER}/.Xauthority"
+    else
+      echo "warning: DISPLAY=${x_display} but no readable Xauthority at ${caller_xauth}; GUI apps may fail." >&2
+    fi
+  fi
+  # --------------------------------------------------------------------------
+
   # No 'exec': we need to keep the parent shell so the EXIT trap can run.
   # Suppress the chroot exit code so a non-zero shell exit (e.g. Ctrl-D
   # after a failed command) still lets cleanup print its summary.
@@ -314,6 +340,8 @@ EOF
       TERM="${TERM:-xterm-256color}" \
       LANG="${LANG:-C.UTF-8}" \
       PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+      ${x_display:+DISPLAY="${x_display}"} \
+      ${x_xauth_inside:+XAUTHORITY="${x_xauth_inside}"} \
     /bin/bash --rcfile "${rc_inside}" -i \
     || true
 
