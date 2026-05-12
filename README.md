@@ -111,9 +111,9 @@ Lower-level scripts:
 | `scripts/install-rosdeps.sh` | Install source package dependencies with `rosdep`. |
 | `scripts/build-ros2.sh` | Build ROS 2 with colcon. |
 | `scripts/smoke-test.sh` | Verify `ros2`, demo executables, and `PyKDL`. |
-| `scripts/pack-rootfs.sh` | Archive a finished rootfs into `artifacts/` and emit a self-contained `<archive>.restore.sh` companion. |
+| `scripts/pack-rootfs.sh` | Archive a finished rootfs into `artifacts/` as a self-contained `<stem>.tar.zst` (rootfs with `ros2-chroot.sh` baked in at `/usr/local/bin/`, plus a top-level symlink and metadata). |
 | `scripts/unpack-rootfs.sh` | Restore a packed rootfs archive (in-tree convenience wrapper). |
-| `scripts/restore-rootfs.sh` | Self-contained `unpack/mount/enter/smoke-test` script shipped next to each artifact. |
+| `scripts/ros2-chroot.sh` | Installed inside the rootfs at `/usr/local/bin/ros2-chroot.sh` by `provision-rootfs.sh`; exposed at the top of each packed artifact via a symlink. The recipient's daily entry point into the chroot. |
 | `scripts/clean-rootfs.sh` | Safely unmount and remove the generated rootfs and local build logs. |
 | `scripts/enter-rootfs.sh` | Enter the chroot as the internal `ros2` user. |
 | `scripts/mount-rootfs.sh` | Bind/mount support filesystems for the chroot. |
@@ -184,23 +184,40 @@ To archive a finished rootfs:
 ./scripts/pack-rootfs.sh
 ```
 
-This writes two files into `artifacts/`:
+This writes a single self-contained tarball into `artifacts/`:
 
-- `ros2-jazzy-noble-rootfs-YYYYMMDD.tar.zst` — the chroot contents.
-- `ros2-jazzy-noble-rootfs-YYYYMMDD.restore.sh` — a self-contained companion script (no dependency on this repo).
-
-Distribute both files together. On a fresh amd64 host with `sudo`, `tar`, `zstd`, and chroot support, the recipient does not need to clone this repository:
-
-```bash
-chmod +x ros2-jazzy-noble-rootfs-YYYYMMDD.restore.sh
-./ros2-jazzy-noble-rootfs-YYYYMMDD.restore.sh unpack       # extracts to ./rootfs next to the script
-./ros2-jazzy-noble-rootfs-YYYYMMDD.restore.sh smoke-test   # ros2 CLI + talker + PyKDL
-./ros2-jazzy-noble-rootfs-YYYYMMDD.restore.sh enter        # interactive ROS-ready shell
+```text
+artifacts/ros2-jazzy-noble-rootfs-YYYYMMDD.tar.zst
 ```
 
-The companion script supports `unpack | mount | umount | enter | smoke-test` and auto-discovers the matching `*.tar.zst` archive next to itself. Override the destination with `ROOTFS_DIR=/srv/ros2 ./...restore.sh unpack`.
+Extracting it produces a date-stamped directory with everything the recipient needs:
 
-A plain `tar xf` of the archive does work — it produces an Ubuntu rootfs in the current directory — but you would then have to bind-mount `/dev`, `/dev/pts`, `/proc`, `/sys`, `/run` and `chroot` in by hand. The companion script is just those steps wrapped up safely.
+```text
+ros2-jazzy-noble-rootfs-YYYYMMDD/
+├── rootfs/                                       # the chroot contents
+├── ros2-chroot.sh -> rootfs/usr/local/bin/ros2-chroot.sh   # daily entry point (symlink)
+├── README.md                                     # short usage instructions
+└── ARTIFACT_INFO                                 # ROS distro, codename, build date, arch
+```
+
+The entry-point script lives inside the rootfs at `/usr/local/bin/ros2-chroot.sh` (single source of truth, also on `$PATH` after entering the chroot); the top-level `ros2-chroot.sh` is a relative symlink for ergonomics.
+
+On a fresh amd64 host with `sudo`, `tar`, `zstd`, and chroot support, the recipient does not need to clone this repository:
+
+```bash
+sudo tar xf ros2-jazzy-noble-rootfs-YYYYMMDD.tar.zst   # sudo preserves ownership of in-chroot files
+cd ros2-jazzy-noble-rootfs-YYYYMMDD
+sudo ./ros2-chroot.sh smoke-test   # one-time verification: ros2 CLI + talker + PyKDL
+sudo ./ros2-chroot.sh              # enter the ROS shell (default action)
+```
+
+After that, the everyday command after a reboot or in a new terminal is simply:
+
+```bash
+cd ros2-jazzy-noble-rootfs-YYYYMMDD && sudo ./ros2-chroot.sh
+```
+
+`ros2-chroot.sh` supports `enter | mount | umount | smoke-test | info | help`. `enter` is the default when no argument is given. Override the rootfs location with `ROOTFS_DIR=/srv/ros2/rootfs sudo -E ./ros2-chroot.sh`.
 
 If you have the repository checked out, `./scripts/unpack-rootfs.sh artifacts/...tar.zst` followed by `./scripts/smoke-test.sh` and `./set_environment.sh` still works as before.
 

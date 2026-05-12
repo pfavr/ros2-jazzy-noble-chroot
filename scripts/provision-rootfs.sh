@@ -89,4 +89,9 @@ if [[ ! -e "${ROOTFS_DIR}/etc/ros/rosdep/sources.list.d/20-default.list" ]]; the
 fi
 run_as_ros_user "${ROS_WORKSPACE}/venv/bin/rosdep update"
 
+# Install the chroot-entry helper inside the rootfs itself, so it travels with
+# the artifact and is also available on $PATH after entering the chroot.
+install -m 0755 "${REPO_ROOT}/scripts/ros2-chroot.sh" \
+  "${ROOTFS_DIR}/usr/local/bin/ros2-chroot.sh"
+
 echo "Provisioned Ubuntu ${UBUNTU_CODENAME} rootfs for ROS 2 ${ROS_DISTRO}."
