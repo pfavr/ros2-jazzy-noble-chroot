@@ -63,5 +63,8 @@ run_in_chroot() {
 }
 
 run_as_ros_user() {
-  run_in_chroot /usr/bin/su - "${ROS_USER}" -c "$*"
+  if [[ $# -ne 1 ]]; then
+    die "run_as_ros_user expects a single shell-command string (got $#)."
+  fi
+  run_in_chroot /usr/bin/su - "${ROS_USER}" -c "$1"
 }

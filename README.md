@@ -1,21 +1,21 @@
 # ros2-jazzy-noble-chroot
 
-Build ROS 2 Jazzy from source inside an Ubuntu 24.04 Noble chroot while keeping the host system mostly untouched. The host can be any compatible amd64 Linux system with `sudo`, `debootstrap`, and chroot/mount support. Once built, the finished chroot can be packed into a compressed rootfs archive and restored on another compatible amd64 host.
+Build ROS 2 Jazzy from source inside an Ubuntu 24.04 Noble chroot, while keeping the host system mostly untouched. The host can be any amd64 Linux system with `sudo`, `debootstrap`, and chroot/mount support. Once built, the finished chroot can be packed into a compressed rootfs archive and restored on another amd64 host.
 
-The default target is `ROS_DISTRO=jazzy` on `UBUNTU_CODENAME=noble`. Other combinations are not tested here and may need different source manifests, apt sources, or rosdep handling.
+The default target is `ROS_DISTRO=jazzy` on `UBUNTU_CODENAME=noble`. Other combinations are not tested and may need different source manifests, apt sources, or rosdep handling.
 
 ## What this does
 
-- Creates an Ubuntu Noble root filesystem under `rootfs/`.
+- Bootstraps an Ubuntu Noble root filesystem under `rootfs/`.
 - Installs ROS 2 Jazzy source-build dependencies inside the chroot.
-- Creates a Python tools environment at `/opt/ros2_ws/venv` inside the chroot.
-- Imports ROS 2 Jazzy sources into `/opt/ros2_ws/src`.
+- Creates a Python tools environment at `/opt/ros2_ws/venv` (colcon, vcstool, rosdep).
+- Imports the ROS 2 Jazzy source manifest into `/opt/ros2_ws/src`.
 - Builds ROS 2 from source into `/opt/ros2_ws/install`.
 - Provides `./set_environment.sh` for entering a ROS-ready shell.
 
 The checkout can live anywhere on the host. Inside the chroot, the ROS workspace always lives at `/opt/ros2_ws`, which keeps build paths stable across machines.
 
-The repository is intentionally small: scripts, documentation, VS Code settings, and license text. Generated root filesystems, archives, build logs, and ROS source checkouts should stay out of Git.
+The repository is intentionally small: scripts, documentation, VS Code settings, and license text. Generated root filesystems, archives, build logs, and ROS source checkouts stay out of Git.
 
 ## Quick start
 
@@ -76,6 +76,7 @@ Host checkout:
 ├── rootfs/                 # Ubuntu Noble chroot, not committed
 ├── artifacts/              # Optional packed rootfs archives, not committed
 ├── scripts/                # Host orchestration scripts
+├── logs/                   # Per-step build_all.sh logs, not committed
 ├── build_all.sh            # Run the full build and smoke test
 ├── clean_all.sh            # Remove generated files and return to a clone-clean tree
 └── set_environment.sh      # Enter a ROS-ready shell in the chroot
@@ -131,7 +132,7 @@ Override those defaults when needed:
 WORKERS=6 BUILD_JOBS=8 ./scripts/build-ros2.sh
 ```
 
-Avoid unconstrained 32-way package and compile parallelism. ROS 2 has large packages, and nested parallelism can make failures harder to diagnose.
+Avoid unconstrained 32-way package and compile parallelism. ROS 2 has large packages, and nested parallelism makes failures harder to diagnose and can exhaust memory.
 
 ## Reproducibility knobs
 
@@ -148,10 +149,16 @@ sudo cp pinned-ros2.repos rootfs/tmp/pinned-ros2.repos
 ROS2_REPOS_URL=/tmp/pinned-ros2.repos ./scripts/fetch-sources.sh
 ```
 
-The ROS apt source package is downloaded from the latest `ros-apt-source` release by default. Pin it when you need an exact rebuild:
+The ROS apt source package is downloaded from the latest `ros-apt-source` GitHub release by default, via an unauthenticated API call that is rate-limited. Pin it when you need an exact rebuild or hit the rate limit:
 
 ```bash
 ROS_APT_SOURCE_VERSION='RELEASE_TAG' ./scripts/provision-rootfs.sh
+```
+
+The Ubuntu mirror defaults to `http://archive.ubuntu.com/ubuntu`. Point `UBUNTU_MIRROR` at a closer mirror for faster bootstrapping:
+
+```bash
+UBUNTU_MIRROR='http://gb.archive.ubuntu.com/ubuntu' ./scripts/create-rootfs.sh
 ```
 
 If rosdep gains or loses keys over time, override the skipped keys without editing the script:
@@ -164,7 +171,7 @@ ROSDEP_SKIP_KEYS="fastcdr rti-connext-dds-6.0.1 urdfdom_headers" ./scripts/insta
 
 The venv inside the chroot is created with `--system-site-packages`. This is intentional: ROS packages supplied by Ubuntu, especially `PyKDL`, need to be visible to the build and runtime environment.
 
-Python command-line tooling such as `colcon`, `vcstool`, and `rosdep` is installed into `/opt/ros2_ws/venv`.
+Python command-line tooling (`colcon`, `vcstool`, `rosdep`) is installed into `/opt/ros2_ws/venv` with `pip install --no-deps`, so their transitive deps (`catkin_pkg`, `rosdistro`, `PyYAML`, ...) resolve against the apt-provided `python3-*` packages rather than pip-built duplicates.
 
 ## Portable artifacts
 
@@ -188,7 +195,9 @@ The chroot bundles userspace. It does not bundle the host kernel, GPU drivers, U
 
 ## Operational notes
 
-Most scripts re-exec themselves with `sudo` when needed. They mount `/dev`, `/dev/pts`, `/proc`, `/sys`, and `/run` into the chroot before operating.
+Most scripts re-exec themselves with `sudo` when needed. They bind-mount `/dev`, `/dev/pts`, `/proc`, `/sys`, and `/run` into the chroot before operating.
+
+`build_all.sh` writes per-step logs to `logs/<step>.log` (e.g. `logs/build-ros2.log`). On failure, the script reports which step exited non-zero and where its log lives. `clean_all.sh` (and `scripts/clean-rootfs.sh`) only removes the logs from known step names, so any other `*.log` files you keep in the repo root are left alone.
 
 If a script is interrupted, clean up support mounts before moving, deleting, packing, or unpacking the rootfs:
 

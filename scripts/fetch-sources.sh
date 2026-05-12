@@ -9,7 +9,7 @@ require_chroot_executable "${ROS_WORKSPACE}/venv/bin/vcs" "Run scripts/provision
 "${REPO_ROOT}/scripts/mount-rootfs.sh"
 
 run_in_chroot mkdir -p "${ROS_WORKSPACE}/src"
-run_in_chroot chown -R "${ROS_USER}:${ROS_USER}" "${ROS_WORKSPACE}"
+run_in_chroot chown "${ROS_USER}:${ROS_USER}" "${ROS_WORKSPACE}" "${ROS_WORKSPACE}/src"
 
 workspace=$(shell_quote "${ROS_WORKSPACE}")
 repos_url=$(shell_quote "${ROS2_REPOS_URL}")

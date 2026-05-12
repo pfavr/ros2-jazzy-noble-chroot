@@ -63,6 +63,10 @@ run_in_chroot chown -R "${ROS_USER}:${ROS_USER}" "${ROS_WORKSPACE}" "/home/${ROS
 
 run_as_ros_user "python3 -m venv --clear --system-site-packages ${ROS_WORKSPACE}/venv"
 run_as_ros_user "${ROS_WORKSPACE}/venv/bin/python -m pip install --upgrade pip 'setuptools<80' wheel"
+# --no-deps is deliberate: the venv is created with --system-site-packages, so colcon/vcstool/rosdep
+# resolve their transitive deps (catkin_pkg, rosdistro, PyYAML, ...) against the apt-provided
+# python3-* packages installed above. This avoids pulling in pip-built duplicates that can shadow
+# the system versions PyKDL and other apt ROS bits expect.
 run_as_ros_user "${ROS_WORKSPACE}/venv/bin/python -m pip install --ignore-installed --no-deps colcon-core vcstool rosdep"
 
 if [[ ! -e "${ROOTFS_DIR}/etc/ros/rosdep/sources.list.d/20-default.list" ]]; then

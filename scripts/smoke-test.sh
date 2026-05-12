@@ -12,6 +12,9 @@ require_chroot_path "${ROS_WORKSPACE}/install/local_setup.bash" "Run scripts/bui
 workspace=$(shell_quote "${ROS_WORKSPACE}")
 run_as_ros_user "cd ${workspace} && . ${workspace}/venv/bin/activate && . ${workspace}/install/local_setup.bash && ros2 --help >/dev/null"
 run_as_ros_user "cd ${workspace} && . ${workspace}/venv/bin/activate && . ${workspace}/install/local_setup.bash && ros2 pkg executables demo_nodes_cpp | grep -q 'demo_nodes_cpp talker'"
+# Actually launch the talker briefly to catch runtime/RMW breakage, not just package registration.
+# `timeout` returns 124 on the SIGTERM we expect; any other non-zero exit is a real failure.
+run_as_ros_user "cd ${workspace} && . ${workspace}/venv/bin/activate && . ${workspace}/install/local_setup.bash && { timeout --preserve-status 3 ros2 run demo_nodes_cpp talker >/dev/null 2>&1; rc=\$?; [[ \$rc -eq 0 || \$rc -eq 124 || \$rc -eq 143 ]]; }"
 run_as_ros_user "cd ${workspace} && . ${workspace}/venv/bin/activate && python -c 'import PyKDL'"
 
 echo "ROS 2 ${ROS_DISTRO} smoke test passed."

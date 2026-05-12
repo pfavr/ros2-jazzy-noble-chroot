@@ -26,7 +26,13 @@ if findmnt -rn -o TARGET | awk -v root="${rootfs_path}" '($0 == root) || (substr
 fi
 
 rm -rf --one-file-system "${ROOTFS_DIR}"
-find "${REPO_ROOT}" -maxdepth 1 -type f -name '*.log' -delete
+# Remove only the per-step logs produced by build_all.sh, both the legacy in-tree
+# location and the current logs/ directory. Avoid wiping unrelated *.log files.
+step_logs=(check-host create-rootfs provision-rootfs fetch-sources build-ros2 build-host smoke-test pack-rootfs)
+for name in "${step_logs[@]}"; do
+  rm -f "${REPO_ROOT}/${name}.log" "${REPO_ROOT}/logs/${name}.log"
+done
+rmdir "${REPO_ROOT}/logs" 2>/dev/null || true
 
 if [[ ${remove_artifacts} -eq 1 ]]; then
   rm -rf --one-file-system "${REPO_ROOT}/artifacts"
