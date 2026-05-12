@@ -3,21 +3,45 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-create_artifact=0
-if [[ "${1:-}" == "--artifacts" ]]; then
-  create_artifact=1
-  shift
-fi
+# Default: build for redistribution (merge-install layout + pack a tarball).
+# --no-artifacts switches to the historical dev workflow: --symlink-install
+# layout (fast iteration, build/ NOT removable) and no packing.
+create_artifact=1
+build_mode=release
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  echo "Usage: $0 [--artifacts]"
-  exit 0
-fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-artifacts)
+      create_artifact=0
+      build_mode=dev
+      shift
+      ;;
+    --artifacts)
+      # Back-compat alias for the (now default) release flow.
+      create_artifact=1
+      build_mode=release
+      shift
+      ;;
+    -h|--help)
+      cat <<USAGE
+Usage: $0 [--no-artifacts]
 
-if [[ $# -ne 0 ]]; then
-  echo "Usage: $0 [--artifacts]" >&2
-  exit 2
-fi
+Without flags (default):
+  Build ROS 2 with --merge-install so opt/ros2_ws/build is removable,
+  then pack a redistributable tarball under artifacts/.
+
+--no-artifacts:
+  Build ROS 2 with --symlink-install (dev layout, fast incremental
+  iteration; build/ is NOT removable). Skip packing the tarball.
+USAGE
+      exit 0
+      ;;
+    *)
+      echo "Usage: $0 [--no-artifacts]" >&2
+      exit 2
+      ;;
+  esac
+done
 
 cd "${SCRIPT_DIR}"
 
@@ -37,6 +61,8 @@ run_step() {
   fi
 }
 
+export BUILD_MODE="${build_mode}"
+
 run_step check-host ./scripts/check-host.sh
 run_step create-rootfs ./scripts/create-rootfs.sh
 run_step provision-rootfs ./scripts/provision-rootfs.sh
@@ -48,7 +74,7 @@ if [[ ${create_artifact} -eq 1 ]]; then
   run_step pack-rootfs ./scripts/pack-rootfs.sh
 fi
 
-echo "Done."
+echo "Done (BUILD_MODE=${build_mode})."
 if [[ ${create_artifact} -eq 1 ]]; then
   echo "Packed rootfs archive written under artifacts/."
 fi

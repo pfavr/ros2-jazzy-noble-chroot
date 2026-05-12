@@ -11,6 +11,19 @@ if ! command -v zstd >/dev/null 2>&1; then
   exit 1
 fi
 
+# Excluding opt/ros2_ws/build from the archive (see the tar command below)
+# is only safe if the install was built with copies, not symlinks. A
+# --symlink-install build leaves install/ pointing back into build/ and src/,
+# so dropping build/ would break the shipped install. scripts/build-ros2.sh
+# records the mode it last used in .build_mode; refuse to pack a dev build.
+marker="${ROOTFS_DIR}${ROS_WORKSPACE}/.build_mode"
+if [[ -f "${marker}" ]]; then
+  pack_mode=$(cat "${marker}")
+  if [[ "${pack_mode}" != "release" ]]; then
+    die "Rootfs was built with BUILD_MODE=${pack_mode}; install/ contains symlinks into build/, which the artifact excludes. Rebuild with BUILD_MODE=release (or rerun build_all.sh without --no-artifacts) before packing."
+  fi
+fi
+
 # Compression level: override with ZSTD_LEVEL while iterating. Use a fast
 # level (3) by default; bump to 19 (or 22 --long) for release artifacts.
 #   ZSTD_LEVEL=3   ~5x faster pack, ~10-20% larger archive       (default)
@@ -176,6 +189,14 @@ README
 
 tar --xattrs --acls --numeric-owner -I "zstd -T0 -${ZSTD_LEVEL}" \
     --exclude="${stem}/rootfs/dev/*" \
+    --exclude="${stem}/rootfs/opt/ros2_ws/build" \
+    --exclude="${stem}/rootfs/opt/ros2_ws/log" \
+    --exclude="${stem}/rootfs/var/cache/apt/archives/*.deb" \
+    --exclude="${stem}/rootfs/var/cache/apt/archives/partial/*" \
+    --exclude="${stem}/rootfs/var/lib/apt/lists/*" \
+    --exclude="${stem}/rootfs/root/.cache" \
+    --exclude="${stem}/rootfs/home/ros2/.cache" \
+    --exclude="${stem}/rootfs/tmp/*" \
     -cpf "${archive}" \
     -C "${stage}" "${stem}"
 
