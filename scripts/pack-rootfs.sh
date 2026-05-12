@@ -130,12 +130,27 @@ the workspace venv activated.
 | Command       | What it does                                                    |
 |---------------|-----------------------------------------------------------------|
 | (no arg)      | Alias for \`enter\`.                                            |
-| \`enter\`     | Mount support filesystems and chroot in as \`ros2\`.            |
+| \`enter\`     | Mount support filesystems, register a session, chroot in as \`ros2\`. Auto-unmounts on exit if no other sessions remain. |
 | \`mount\`     | Mount the support filesystems only.                             |
-| \`umount\`    | Unmount everything under \`rootfs/\`.                           |
+| \`umount\`    | Unmount everything under \`rootfs/\`. Refuses if other sessions are active; pass \`--force\` to override. |
 | \`smoke-test\`| Verify ros2 CLI, demo \`talker\`, and PyKDL.                    |
+| \`status\`    | Show active chroot sessions (pid, tty, user, start time) and whether mounts are up. |
 | \`info\`      | Print resolved paths and \`ARTIFACT_INFO\`.                     |
 | \`help\`      | Show usage.                                                     |
+
+## Multiple terminals & cleanup
+
+The script tracks every active \`enter\` session in \`/run/ros2-chroot/<id>/\`
+(host tmpfs, wiped on reboot). You can open the chroot in several terminals
+simultaneously; \`mount\` is idempotent. When you exit, the script reports:
+
+* **Last session out** -> support filesystems are unmounted automatically, and
+  you are told the rootfs tree is now safe to \`rm -rf\`.
+* **Other sessions still active** -> mounts are left in place; the message
+  points you at \`ros2-chroot.sh status\` to see who's still in.
+
+If a session crashed and left mounts behind, \`sudo ./ros2-chroot.sh umount\`
+will refuse while it thinks sessions are active -- use \`umount --force\`.
 
 ## Environment overrides
 

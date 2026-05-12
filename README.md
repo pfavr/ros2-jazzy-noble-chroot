@@ -217,7 +217,16 @@ After that, the everyday command after a reboot or in a new terminal is simply:
 cd ros2-jazzy-noble-rootfs-YYYYMMDD && sudo ./ros2-chroot.sh
 ```
 
-`ros2-chroot.sh` supports `enter | mount | umount | smoke-test | info | help`. `enter` is the default when no argument is given. Override the rootfs location with `ROOTFS_DIR=/srv/ros2/rootfs sudo -E ./ros2-chroot.sh`.
+`ros2-chroot.sh` supports `enter | mount | umount | smoke-test | status | info | help`. `enter` is the default when no argument is given. Override the rootfs location with `ROOTFS_DIR=/srv/ros2/rootfs sudo -E ./ros2-chroot.sh`.
+
+### Multiple terminals and safe cleanup
+
+Every `enter` registers a per-pid session under `/run/ros2-chroot/<id>/` (host tmpfs). You can run the chroot from several terminals at once — `mount` is idempotent. On exit, the script reports the outcome:
+
+* **Last session out** — support filesystems are unmounted automatically and the script tells you the rootfs tree is now safe to `rm -rf`.
+* **Other sessions still active** — mounts are left in place; the message points you at `sudo ./ros2-chroot.sh status` to see who's still in.
+
+`sudo ./ros2-chroot.sh status` shows pid/tty/user/start-time for every live session plus whether the support mounts are up. `umount` refuses while sessions are tracked as active; pass `--force` to override after a crash.
 
 If you have this repository checked out and want to restore an artifact into the in-tree `rootfs/` for development, use:
 
