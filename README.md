@@ -28,7 +28,19 @@ sudo apt install -y debootstrap
 
 `zstd` is optional unless you want to pack or unpack compressed rootfs archives.
 
-Then run:
+Then run the full build:
+
+```bash
+./build_all.sh
+```
+
+To also create a redistributable rootfs archive under `artifacts/` after the smoke test passes:
+
+```bash
+./build_all.sh --artifacts
+```
+
+The equivalent manual sequence is:
 
 ```bash
 ./scripts/check-host.sh
@@ -64,6 +76,8 @@ Host checkout:
 ├── rootfs/                 # Ubuntu Noble chroot, not committed
 ├── artifacts/              # Optional packed rootfs archives, not committed
 ├── scripts/                # Host orchestration scripts
+├── build_all.sh            # Run the full build and smoke test
+├── clean_all.sh            # Remove generated files and return to a clone-clean tree
 └── set_environment.sh      # Enter a ROS-ready shell in the chroot
 ```
 
@@ -79,6 +93,13 @@ Inside the chroot:
 ```
 
 ## Scripts
+
+| Script | Purpose |
+| --- | --- |
+| `build_all.sh` | Run the complete check, create, provision, fetch, build, and smoke-test flow. Use `--artifacts` to pack the finished rootfs. |
+| `clean_all.sh` | Remove generated rootfs, logs, and artifacts. Use `--keep-artifacts` to retain packed rootfs archives. |
+
+Lower-level scripts:
 
 | Script | Purpose |
 | --- | --- |
@@ -175,13 +196,25 @@ If a script is interrupted, clean up support mounts before moving, deleting, pac
 ./scripts/umount-rootfs.sh
 ```
 
-To remove the generated rootfs and local build logs, use the guarded cleanup script instead of deleting `rootfs/` directly:
+To remove all generated files and return to a clone-clean tree, use:
+
+```bash
+./clean_all.sh
+```
+
+Use `--keep-artifacts` when you want to retain packed rootfs archives:
+
+```bash
+./clean_all.sh --keep-artifacts
+```
+
+For lower-level cleanup, use the guarded rootfs cleanup script instead of deleting `rootfs/` directly:
 
 ```bash
 ./scripts/clean-rootfs.sh
 ```
 
-Add `--artifacts` when you also want to remove packed rootfs archives.
+Add `--artifacts` when you also want that lower-level script to remove packed rootfs archives.
 
 The full source build is large and can take a long time. Keep enough free disk space for the rootfs, ROS source checkout, build tree, install tree, logs, and any packed archive.
 

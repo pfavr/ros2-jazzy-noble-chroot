@@ -26,7 +26,7 @@ if findmnt -rn -o TARGET | awk -v root="${rootfs_path}" '($0 == root) || (substr
 fi
 
 rm -rf --one-file-system "${ROOTFS_DIR}"
-rm -f "${REPO_ROOT}/build-host.log" "${REPO_ROOT}/rosdep-check.log"
+find "${REPO_ROOT}" -maxdepth 1 -type f -name '*.log' -delete
 
 if [[ ${remove_artifacts} -eq 1 ]]; then
   rm -rf --one-file-system "${REPO_ROOT}/artifacts"
