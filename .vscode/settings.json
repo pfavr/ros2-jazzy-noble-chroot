@@ -3,12 +3,7 @@
   "git.repositoryScanMaxDepth": 1,
   "git.repositoryScanIgnoredFolders": [
     "rootfs",
-    "artifacts",
-    "/home/pfavr/ros2_rolling/rootfs",
-    "/home/pfavr/ros2_rolling/artifacts"
-  ],
-  "git.ignoredRepositories": [
-    "/home/pfavr/ros2_rolling/rootfs"
+    "artifacts"
   ],
   "files.watcherExclude": {
     "**/artifacts/**": true,
