@@ -61,9 +61,9 @@ run_in_chroot usermod -aG sudo "${ROS_USER}"
 run_in_chroot mkdir -p "${ROS_WORKSPACE}"
 run_in_chroot chown -R "${ROS_USER}:${ROS_USER}" "${ROS_WORKSPACE}" "/home/${ROS_USER}"
 
-run_as_ros_user "python3 -m venv --system-site-packages ${ROS_WORKSPACE}/venv"
-run_as_ros_user "${ROS_WORKSPACE}/venv/bin/python -m pip install --upgrade pip setuptools wheel"
-run_as_ros_user "${ROS_WORKSPACE}/venv/bin/python -m pip install colcon-common-extensions vcstool rosdep"
+run_as_ros_user "python3 -m venv --clear --system-site-packages ${ROS_WORKSPACE}/venv"
+run_as_ros_user "${ROS_WORKSPACE}/venv/bin/python -m pip install --upgrade pip 'setuptools<80' wheel"
+run_as_ros_user "${ROS_WORKSPACE}/venv/bin/python -m pip install --ignore-installed --no-deps colcon-core vcstool rosdep"
 
 if [[ ! -e "${ROOTFS_DIR}/etc/ros/rosdep/sources.list.d/20-default.list" ]]; then
   run_in_chroot rosdep init
