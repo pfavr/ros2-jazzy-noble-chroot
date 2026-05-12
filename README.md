@@ -1,6 +1,6 @@
 # ros2-jazzy-noble-chroot
 
-Build ROS 2 Jazzy from source inside an Ubuntu 24.04 Noble chroot, while keeping the host system mostly untouched. The host can be any amd64 Linux system with `sudo`, `debootstrap`, and chroot/mount support. Once built, the finished chroot can be packed into a compressed rootfs archive and restored on another amd64 host.
+Build ROS 2 Jazzy from source inside an Ubuntu 24.04 Noble chroot, while keeping the host system mostly untouched. The host can be any amd64 Linux system with `sudo`, `debootstrap`, and chroot/mount support. Once built, the finished chroot can be packed into a single self-contained `.tar.zst` artifact and deployed on another amd64 host without cloning this repository.
 
 The default target is `ROS_DISTRO=jazzy` on `UBUNTU_CODENAME=noble`. Other combinations are not tested and may need different source manifests, apt sources, or rosdep handling.
 
@@ -219,7 +219,25 @@ cd ros2-jazzy-noble-rootfs-YYYYMMDD && sudo ./ros2-chroot.sh
 
 `ros2-chroot.sh` supports `enter | mount | umount | smoke-test | info | help`. `enter` is the default when no argument is given. Override the rootfs location with `ROOTFS_DIR=/srv/ros2/rootfs sudo -E ./ros2-chroot.sh`.
 
-If you have the repository checked out, `./scripts/unpack-rootfs.sh artifacts/...tar.zst` followed by `./scripts/smoke-test.sh` and `./set_environment.sh` still works as before.
+If you have this repository checked out and want to restore an artifact into the in-tree `rootfs/` for development, use:
+
+```bash
+sudo ./scripts/unpack-rootfs.sh artifacts/ros2-jazzy-noble-rootfs-YYYYMMDD.tar.zst
+sudo ./scripts/smoke-test.sh
+./set_environment.sh
+```
+
+`unpack-rootfs.sh` strips the artifact's `<stem>/rootfs/` prefix so the contents land at `./rootfs/` (the helper script, README, and ARTIFACT_INFO are not copied — the repo already has them).
+
+### Compression level
+
+`pack-rootfs.sh` uses `zstd -3` by default for fast iteration while testing. For release-quality artifacts, bump the level:
+
+```bash
+ZSTD_LEVEL=19 sudo -E ./scripts/pack-rootfs.sh   # -E preserves the env var
+```
+
+The pack output reports the chosen level and the resulting archive size.
 
 The chroot bundles userspace. It does not bundle the host kernel, GPU drivers, USB/serial permissions, udev rules, multicast/network policy, or realtime settings.
 

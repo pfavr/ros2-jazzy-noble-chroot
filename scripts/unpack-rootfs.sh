@@ -28,7 +28,18 @@ if ! command -v zstd >/dev/null 2>&1; then
 fi
 
 mkdir -p "${ROOTFS_DIR}"
-tar --xattrs --acls --numeric-owner -I zstd -xpf "${archive}" -C "${ROOTFS_DIR}"
+# Artifacts produced by pack-rootfs.sh have the layout
+#   <stem>/rootfs/...        (the chroot contents)
+#   <stem>/ros2-chroot.sh    (top-level symlink, for standalone use)
+#   <stem>/README.md
+#   <stem>/ARTIFACT_INFO
+# For the in-tree dev flow we only want the rootfs payload, dropped at
+# ${ROOTFS_DIR}. --strip-components=2 removes the "<stem>/rootfs/" prefix,
+# and the wildcard filters out the top-level helper files.
+tar --xattrs --acls --numeric-owner -I zstd -xpf "${archive}" \
+    -C "${ROOTFS_DIR}" \
+    --strip-components=2 \
+    --wildcards '*/rootfs/*'
 cp --remove-destination /etc/resolv.conf "${ROOTFS_DIR}/etc/resolv.conf"
 
 echo "Unpacked ${archive} into ${ROOTFS_DIR}"
