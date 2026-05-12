@@ -45,7 +45,11 @@ apt-get install -y \
   python3-pytest-runner \
   python3-pytest-timeout \
   python3-venv \
-  ros-dev-tools
+  ros-dev-tools \
+  libgstreamer1.0-dev \
+  libgstreamer-plugins-base1.0-dev \
+  gstreamer1.0-plugins-good \
+  libboost-thread-dev
 apt-get clean
 
 # Workaround: Ubuntu Noble'"'"'s python3-pytest-repeat ships an incomplete

@@ -302,16 +302,6 @@ sudo ./scripts/smoke-test.sh
 
 `unpack-rootfs.sh` strips the artifact's `<stem>/rootfs/` prefix so the contents land at `./rootfs/` (the helper script, README, and ARTIFACT_INFO are not copied — the repo already has them).
 
-### Compression level
-
-`pack-rootfs.sh` uses `zstd -3` by default for fast iteration while testing. For release-quality artifacts, bump the level:
-
-```bash
-ZSTD_LEVEL=19 sudo -E ./scripts/pack-rootfs.sh   # -E preserves the env var
-```
-
-The pack output reports the chosen level and the resulting archive size.
-
 The chroot bundles userspace. It does not bundle the host kernel, GPU drivers, USB/serial permissions, udev rules, multicast/network policy, or realtime settings.
 
 ## Operational notes

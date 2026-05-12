@@ -335,7 +335,6 @@ upgrade_tools() {
 
 run_choice() {
   case "$1" in
-    status) show_status ;;
     install-vscode) install_vscode ;;
     remove-vscode) remove_vscode ;;
     install-foxglove) install_foxglove ;;
@@ -348,58 +347,107 @@ run_choice() {
   esac
 }
 
+# Emits one line per tool: <action-key>|<menu label>|<description>
+# action-key is the opposite of the current state (install-* or remove-*).
+tool_menu_entries() {
+  local pkg name action label desc version
+  while IFS='|' read -r pkg name; do
+    [[ -z "${pkg}" ]] && continue
+    if package_installed "${pkg}"; then
+      version=$(package_version "${pkg}")
+      action="remove-${pkg}"
+      label="Remove ${name}"
+      desc="installed ${version}"
+    else
+      action="install-${pkg}"
+      label="Install ${name}"
+      desc="not installed"
+    fi
+    # Normalize action keys to the ones run_choice understands.
+    case "${action}" in
+      install-code) action=install-vscode ;;
+      remove-code) action=remove-vscode ;;
+      install-foxglove-studio) action=install-foxglove ;;
+      remove-foxglove-studio) action=remove-foxglove ;;
+    esac
+    printf '%s|%s|%s\n' "${action}" "${label}" "${desc}"
+  done <<'TOOLS'
+code|VS Code desktop
+foxglove-studio|Foxglove Desktop
+firefox|Firefox browser
+TOOLS
+}
+
+any_tool_installed() {
+  package_installed code || package_installed foxglove-studio || package_installed firefox
+}
+
 whiptail_menu() {
   command -v whiptail >/dev/null 2>&1 || return 1
   [[ -t 1 ]] || return 1
 
-  local choice
+  local choice action label desc args entries
   while true; do
-    choice=$(whiptail --title "ros2_config" --menu "Optional desktop tools" 20 76 10 \
-      status "Show installed optional tools" \
-      install-vscode "Install Visual Studio Code desktop" \
-      remove-vscode "Remove Visual Studio Code desktop" \
-      install-foxglove "Install Foxglove Desktop" \
-      remove-foxglove "Remove Foxglove Desktop" \
-      install-firefox "Install Firefox browser from Mozilla apt" \
-      remove-firefox "Remove Firefox browser" \
-      upgrade "Upgrade installed optional tools" \
-      quit "Exit" \
-      3>&1 1>&2 2>&3) || return 0
-    if [[ "${choice}" == "status" ]]; then
-      whiptail --title "ros2_config status" --msgbox "$(status_text)" 11 76
-      continue
+    args=(--title "ros2_config" --menu "Optional desktop tools" 20 76 10)
+    entries=$(tool_menu_entries)
+    while IFS='|' read -r action label desc; do
+      [[ -z "${action}" ]] && continue
+      args+=("${action}" "${label} [${desc}]")
+    done <<<"${entries}"
+    if any_tool_installed; then
+      args+=(upgrade "Upgrade installed optional tools")
     fi
+    args+=(quit "Exit")
+
+    choice=$(whiptail "${args[@]}" 3>&1 1>&2 2>&3) || return 0
     run_choice "${choice}" || return 0
   done
 }
 
 text_menu() {
+  local action label desc entries line idx choice
+  local -a actions labels descs
   while true; do
+    actions=()
+    labels=()
+    descs=()
+    entries=$(tool_menu_entries)
+    while IFS='|' read -r action label desc; do
+      [[ -z "${action}" ]] && continue
+      actions+=("${action}")
+      labels+=("${label}")
+      descs+=("${desc}")
+    done <<<"${entries}"
+
     say ""
     say "ros2_config: optional desktop tools"
-    say "  1) Status"
-    say "  2) Install VS Code desktop"
-    say "  3) Remove VS Code desktop"
-    say "  4) Install Foxglove Desktop"
-    say "  5) Remove Foxglove Desktop"
-    say "  6) Install Firefox browser"
-    say "  7) Remove Firefox browser"
-    say "  8) Upgrade installed optional tools"
+    for idx in "${!actions[@]}"; do
+      printf '  %d) %-26s [%s]\n' "$((idx + 1))" "${labels[$idx]}" "${descs[$idx]}"
+    done
+    local upgrade_idx=0
+    if any_tool_installed; then
+      upgrade_idx=$(( ${#actions[@]} + 1 ))
+      printf '  %d) %s\n' "${upgrade_idx}" "Upgrade installed optional tools"
+    fi
     say "  0) Exit"
     printf 'Select: '
-    local choice
     read -r choice || return 0
     case "${choice}" in
-      1) run_choice status ;;
-      2) run_choice install-vscode ;;
-      3) run_choice remove-vscode ;;
-      4) run_choice install-foxglove ;;
-      5) run_choice remove-foxglove ;;
-      6) run_choice install-firefox ;;
-      7) run_choice remove-firefox ;;
-      8) run_choice upgrade ;;
       0|q|quit) return 0 ;;
-      *) say "Unknown choice: ${choice}" ;;
+      '') continue ;;
+      *)
+        if [[ "${choice}" =~ ^[0-9]+$ ]]; then
+          if (( upgrade_idx > 0 && choice == upgrade_idx )); then
+            run_choice upgrade
+            continue
+          fi
+          if (( choice >= 1 && choice <= ${#actions[@]} )); then
+            run_choice "${actions[$((choice - 1))]}"
+            continue
+          fi
+        fi
+        say "Unknown choice: ${choice}"
+        ;;
     esac
   done
 }
@@ -409,7 +457,6 @@ menu() {
   if whiptail_menu; then
     return 0
   fi
-  show_status
   text_menu
 }
 
