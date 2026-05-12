@@ -11,8 +11,7 @@ if rootfs_exists; then
 fi
 
 if [[ ! -x "${DEBOOTSTRAP}" ]]; then
-  echo "debootstrap not found at ${DEBOOTSTRAP}. Install it on the host first." >&2
-  exit 1
+  die "debootstrap not found at ${DEBOOTSTRAP}. Install it on the host first."
 fi
 
 mkdir -p "${ROOTFS_DIR}"

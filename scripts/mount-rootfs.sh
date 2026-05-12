@@ -5,10 +5,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 need_root "$@"
 
-if ! rootfs_exists; then
-  echo "Rootfs does not exist at ${ROOTFS_DIR}. Run scripts/create-rootfs.sh first." >&2
-  exit 1
-fi
+require_rootfs
 
 mkdir -p "${ROOTFS_DIR}/dev" "${ROOTFS_DIR}/dev/pts" "${ROOTFS_DIR}/proc" "${ROOTFS_DIR}/sys" "${ROOTFS_DIR}/run"
 

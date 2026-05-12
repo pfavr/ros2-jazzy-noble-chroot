@@ -1,8 +1,8 @@
 # ros2-jazzy-noble-chroot
 
-Build ROS 2 Jazzy from source inside an Ubuntu 24.04 Noble chroot, while keeping the host system mostly untouched. This was developed on Debian sid/forky, but the host can be any compatible amd64 Linux system with `sudo`, `debootstrap`, and chroot/mount support.
+Build ROS 2 Jazzy from source inside an Ubuntu 24.04 Noble chroot while keeping the host system mostly untouched. The host can be any compatible amd64 Linux system with `sudo`, `debootstrap`, and chroot/mount support. Once built, the finished chroot can be packed into a compressed rootfs archive and restored on another compatible amd64 host.
 
-This is a Jazzy/Noble source-build workflow, not a Rolling workspace.
+The default target is `ROS_DISTRO=jazzy` on `UBUNTU_CODENAME=noble`. Other combinations are not tested here and may need different source manifests, apt sources, or rosdep handling.
 
 ## What this does
 
@@ -15,14 +15,18 @@ This is a Jazzy/Noble source-build workflow, not a Rolling workspace.
 
 The checkout can live anywhere on the host. Inside the chroot, the ROS workspace always lives at `/opt/ros2_ws`, which keeps build paths stable across machines.
 
+The repository is intentionally small: scripts, documentation, VS Code settings, and license text. Generated root filesystems, archives, build logs, and ROS source checkouts should stay out of Git.
+
 ## Quick start
 
 Install host prerequisites first. On Debian/Ubuntu hosts:
 
 ```bash
 sudo apt update
-sudo apt install -y debootstrap zstd
+sudo apt install -y debootstrap
 ```
+
+`zstd` is optional unless you want to pack or unpack compressed rootfs archives.
 
 Then run:
 
@@ -107,6 +111,33 @@ WORKERS=6 BUILD_JOBS=8 ./scripts/build-ros2.sh
 
 Avoid unconstrained 32-way package and compile parallelism. ROS 2 has large packages, and nested parallelism can make failures harder to diagnose.
 
+## Reproducibility knobs
+
+By default, `scripts/fetch-sources.sh` imports the live ROS 2 Jazzy manifest from:
+
+```text
+https://raw.githubusercontent.com/ros2/ros2/jazzy/ros2.repos
+```
+
+For repeatable rebuilds, save a known-good manifest and point the fetch step at it. The path or URL is consumed from inside the chroot, so use a URL or copy the file into `rootfs/` first:
+
+```bash
+sudo cp pinned-ros2.repos rootfs/tmp/pinned-ros2.repos
+ROS2_REPOS_URL=/tmp/pinned-ros2.repos ./scripts/fetch-sources.sh
+```
+
+The ROS apt source package is downloaded from the latest `ros-apt-source` release by default. Pin it when you need an exact rebuild:
+
+```bash
+ROS_APT_SOURCE_VERSION='RELEASE_TAG' ./scripts/provision-rootfs.sh
+```
+
+If rosdep gains or loses keys over time, override the skipped keys without editing the script:
+
+```bash
+ROSDEP_SKIP_KEYS="fastcdr rti-connext-dds-6.0.1 urdfdom_headers" ./scripts/install-rosdeps.sh
+```
+
 ## Python environment
 
 The venv inside the chroot is created with `--system-site-packages`. This is intentional: ROS packages supplied by Ubuntu, especially `PyKDL`, need to be visible to the build and runtime environment.
@@ -133,6 +164,20 @@ To restore it on another compatible amd64 host:
 
 The chroot bundles userspace. It does not bundle the host kernel, GPU drivers, USB/serial permissions, udev rules, multicast/network policy, or realtime settings.
 
+## Operational notes
+
+Most scripts re-exec themselves with `sudo` when needed. They mount `/dev`, `/dev/pts`, `/proc`, `/sys`, and `/run` into the chroot before operating.
+
+If a script is interrupted, clean up support mounts before moving, deleting, packing, or unpacking the rootfs:
+
+```bash
+./scripts/umount-rootfs.sh
+```
+
+The full source build is large and can take a long time. Keep enough free disk space for the rootfs, ROS source checkout, build tree, install tree, logs, and any packed archive.
+
+The scripts perform basic step checks and will point back to the prerequisite step when expected files are missing.
+
 ## VS Code notes
 
 ROS source imports create many nested upstream Git repositories under `rootfs/opt/ros2_ws/src`. The workspace settings tell VS Code to ignore `rootfs/` and `artifacts/` for Git repository scanning, file watching, and search.
@@ -145,7 +190,7 @@ Ctrl+Shift+P -> Developer: Reload Window
 
 ## Verified locally
 
-This workflow was verified on Debian forky/sid on 12 May 2026 with an Ubuntu Noble 24.04 chroot. ROS 2 Jazzy built successfully from source with 366 packages finished, and `scripts/smoke-test.sh` passed.
+Last verified on Debian forky/sid on 12 May 2026 with an Ubuntu Noble 24.04 chroot. ROS 2 Jazzy built successfully from source with 366 packages finished, and `scripts/smoke-test.sh` passed.
 
 ## License
 

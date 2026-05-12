@@ -4,9 +4,10 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 need_root "$@"
+require_rootfs
 "${REPO_ROOT}/scripts/mount-rootfs.sh"
 
-run_in_chroot /bin/bash -lc '
+run_in_chroot /usr/bin/env ROS_APT_SOURCE_VERSION="${ROS_APT_SOURCE_VERSION}" UBUNTU_CODENAME="${UBUNTU_CODENAME}" /bin/bash -lc '
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
@@ -14,8 +15,14 @@ apt-get install -y locales sudo curl ca-certificates gnupg lsb-release
 locale-gen en_US en_US.UTF-8
 update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 apt-get update
-ROS_APT_SOURCE_VERSION=$(curl -fsSL https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F"\"" "{print \$4}")
-curl -fsSL -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.noble_all.deb"
+if [[ -z "${ROS_APT_SOURCE_VERSION}" ]]; then
+  ROS_APT_SOURCE_VERSION=$(curl -fsSL https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F"\"" "{print \$4; exit}")
+fi
+if [[ -z "${ROS_APT_SOURCE_VERSION}" ]]; then
+  echo "Could not determine ros-apt-source release version." >&2
+  exit 1
+fi
+curl -fsSL -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.${UBUNTU_CODENAME}_all.deb"
 dpkg -i /tmp/ros2-apt-source.deb
 apt-get update
 apt-get upgrade -y
