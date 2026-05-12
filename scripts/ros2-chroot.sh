@@ -338,7 +338,8 @@ EOF
       USER="${ROS_USER}" LOGNAME="${ROS_USER}" \
       SHELL=/bin/bash \
       TERM="${TERM:-xterm-256color}" \
-      LANG="${LANG:-C.UTF-8}" \
+      LANG=C.UTF-8 \
+      LC_ALL=C.UTF-8 \
       PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
       ${x_display:+DISPLAY="${x_display}"} \
       ${x_xauth_inside:+XAUTHORITY="${x_xauth_inside}"} \
@@ -355,7 +356,8 @@ cmd_smoke_test() {
       HOME="/home/${ROS_USER}" \
       USER="${ROS_USER}" LOGNAME="${ROS_USER}" \
       SHELL=/bin/bash \
-      LANG="${LANG:-C.UTF-8}" \
+      LANG=C.UTF-8 \
+      LC_ALL=C.UTF-8 \
       PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
     /bin/bash -c \
     "set -e; cd ${ROS_WORKSPACE} && . venv/bin/activate && . install/local_setup.bash && ros2 --help >/dev/null && ros2 pkg executables demo_nodes_cpp | grep -q 'demo_nodes_cpp talker' && { timeout --preserve-status 3 ros2 run demo_nodes_cpp talker >/dev/null 2>&1; rc=\$?; [[ \$rc -eq 0 || \$rc -eq 124 || \$rc -eq 143 ]]; } && python -c 'import PyKDL'"
