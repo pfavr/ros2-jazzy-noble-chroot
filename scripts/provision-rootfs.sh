@@ -67,6 +67,12 @@ if ! run_in_chroot id -u "${ROS_USER}" >/dev/null 2>&1; then
 fi
 
 run_in_chroot usermod -aG sudo "${ROS_USER}"
+# The ros2 account is created without a password (its login shell is only
+# ever entered via 'chroot --userspec'), so a plain 'sudo apt install ...'
+# inside the chroot would fail with "incorrect password" forever. Grant
+# passwordless sudo via a dedicated drop-in -- visudo-validated and
+# installed mode 0440 so sudo accepts it.
+run_in_chroot bash -c "umask 227 && echo '${ROS_USER} ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/90-${ROS_USER}-nopasswd && visudo -cf /etc/sudoers.d/90-${ROS_USER}-nopasswd"
 run_in_chroot mkdir -p "${ROS_WORKSPACE}"
 run_in_chroot chown -R "${ROS_USER}:${ROS_USER}" "${ROS_WORKSPACE}" "/home/${ROS_USER}"
 
