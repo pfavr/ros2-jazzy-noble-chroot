@@ -1,14 +1,8 @@
-# ROS 2 Jazzy Noble chroot
+# ros2-jazzy-noble-chroot
 
 Build ROS 2 Jazzy from source inside an Ubuntu 24.04 Noble chroot, while keeping the host system mostly untouched. This was developed on Debian sid/forky, but the host can be any compatible amd64 Linux system with `sudo`, `debootstrap`, and chroot/mount support.
 
-This repository is not a Rolling workspace. A good public GitHub repository name would be:
-
-```text
-ros2-jazzy-noble-chroot
-```
-
-Other reasonable names: `ros2-jazzy-source-chroot`, `jazzy-noble-source-build`, or `ros2-jazzy-debootstrap`.
+This is a Jazzy/Noble source-build workflow, not a Rolling workspace.
 
 ## What this does
 
@@ -155,4 +149,4 @@ This workflow was verified on Debian forky/sid on 12 May 2026 with an Ubuntu Nob
 
 ## License
 
-No license has been selected yet. Before publishing this as a public repository, choose a license. MIT is a simple option for scripts, while Apache-2.0 is also a natural fit in the ROS ecosystem.
+This repository is licensed under the MIT License. See [LICENSE](LICENSE).
