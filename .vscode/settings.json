@@ -1,7 +1,14 @@
 {
+  "git.autoRepositoryDetection": "openEditors",
+  "git.repositoryScanMaxDepth": 1,
   "git.repositoryScanIgnoredFolders": [
     "rootfs",
-    "artifacts"
+    "artifacts",
+    "/home/pfavr/ros2_rolling/rootfs",
+    "/home/pfavr/ros2_rolling/artifacts"
+  ],
+  "git.ignoredRepositories": [
+    "/home/pfavr/ros2_rolling/rootfs"
   ],
   "files.watcherExclude": {
     "**/artifacts/**": true,
