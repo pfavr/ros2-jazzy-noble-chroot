@@ -91,6 +91,7 @@ Inside the chroot:
 | `scripts/smoke-test.sh` | Verify `ros2`, demo executables, and `PyKDL`. |
 | `scripts/pack-rootfs.sh` | Archive a finished rootfs into `artifacts/`. |
 | `scripts/unpack-rootfs.sh` | Restore a packed rootfs archive. |
+| `scripts/clean-rootfs.sh` | Safely unmount and remove the generated rootfs and local build logs. |
 | `scripts/enter-rootfs.sh` | Enter the chroot as the internal `ros2` user. |
 | `scripts/mount-rootfs.sh` | Bind/mount support filesystems for the chroot. |
 | `scripts/umount-rootfs.sh` | Unmount chroot support filesystems. |
@@ -173,6 +174,14 @@ If a script is interrupted, clean up support mounts before moving, deleting, pac
 ```bash
 ./scripts/umount-rootfs.sh
 ```
+
+To remove the generated rootfs and local build logs, use the guarded cleanup script instead of deleting `rootfs/` directly:
+
+```bash
+./scripts/clean-rootfs.sh
+```
+
+Add `--artifacts` when you also want to remove packed rootfs archives.
 
 The full source build is large and can take a long time. Keep enough free disk space for the rootfs, ROS source checkout, build tree, install tree, logs, and any packed archive.
 
