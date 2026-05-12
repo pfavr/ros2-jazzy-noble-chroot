@@ -47,6 +47,15 @@ apt-get install -y \
   python3-venv \
   ros-dev-tools
 apt-get clean
+
+# Workaround: Ubuntu Noble'"'"'s python3-pytest-repeat ships an incomplete
+# /usr/lib/python3/dist-packages/pytest_repeat.egg-info/ directory (only
+# entry_points.txt, no PKG-INFO) alongside the real pytest_repeat-*.dist-info.
+# Setuptools'"'"' easy_install path scan flags it as
+#   UserWarning: Unbuilt egg for pytest-repeat [unknown version]
+# on every ament/colcon Python build. The .dist-info has the real metadata,
+# so removing the stub is safe and silences ~90 spurious warnings per build.
+rm -rf /usr/lib/python3/dist-packages/pytest_repeat.egg-info
 '
 
 if ! run_in_chroot getent group "${ROS_USER}" >/dev/null; then
@@ -62,7 +71,13 @@ run_in_chroot mkdir -p "${ROS_WORKSPACE}"
 run_in_chroot chown -R "${ROS_USER}:${ROS_USER}" "${ROS_WORKSPACE}" "/home/${ROS_USER}"
 
 run_as_ros_user "python3 -m venv --clear --system-site-packages ${ROS_WORKSPACE}/venv"
-run_as_ros_user "${ROS_WORKSPACE}/venv/bin/python -m pip install --upgrade pip 'setuptools<80' wheel"
+# Pin setuptools below 70: setuptools >=70 escalates `tests_require` to a
+# UserWarning and setuptools >=77 deprecates the legacy License classifiers,
+# both of which are still used by many ROS 2 Jazzy Python packages upstream.
+# Pinning below 70 keeps the build output clean without patching dozens of
+# upstream setup.py / setup.cfg files. Setuptools 80 also drops easy_install,
+# so the previous `<80` pin was already in this spirit; this just tightens it.
+run_as_ros_user "${ROS_WORKSPACE}/venv/bin/python -m pip install --upgrade pip 'setuptools<70' wheel"
 # --no-deps is deliberate: the venv is created with --system-site-packages, so colcon/vcstool/rosdep
 # resolve their transitive deps (catkin_pkg, rosdistro, PyYAML, ...) against the apt-provided
 # python3-* packages installed above. This avoids pulling in pip-built duplicates that can shadow
