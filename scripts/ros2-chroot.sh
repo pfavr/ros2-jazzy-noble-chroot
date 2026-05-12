@@ -152,12 +152,22 @@ chroot_is_mounted() {
 
 cmd_mount() {
   require_rootfs
-  mkdir -p "${ROOTFS_DIR}/dev" "${ROOTFS_DIR}/dev/pts" "${ROOTFS_DIR}/proc" "${ROOTFS_DIR}/sys" "${ROOTFS_DIR}/run"
-  mountpoint -q "${ROOTFS_DIR}/dev"     || mount --bind /dev     "${ROOTFS_DIR}/dev"
-  mountpoint -q "${ROOTFS_DIR}/dev/pts" || mount --bind /dev/pts "${ROOTFS_DIR}/dev/pts"
+  mkdir -p "${ROOTFS_DIR}/dev" "${ROOTFS_DIR}/proc" "${ROOTFS_DIR}/sys" "${ROOTFS_DIR}/run"
+  # Recursive bind for /dev so the host's /dev/shm (tmpfs) and /dev/pts
+  # submounts come along -- a plain --bind leaves /dev/shm as an empty
+  # 0755 directory and Fast-DDS SHM transport then fails with
+  # "Permission denied" when ros2 tries to create segments. --make-rslave
+  # keeps any in-chroot unmount from propagating back to the host.
+  if ! mountpoint -q "${ROOTFS_DIR}/dev"; then
+    mount --rbind /dev "${ROOTFS_DIR}/dev"
+    mount --make-rslave "${ROOTFS_DIR}/dev"
+  fi
   mountpoint -q "${ROOTFS_DIR}/proc"    || mount -t proc  proc   "${ROOTFS_DIR}/proc"
   mountpoint -q "${ROOTFS_DIR}/sys"     || mount -t sysfs sysfs  "${ROOTFS_DIR}/sys"
-  mountpoint -q "${ROOTFS_DIR}/run"     || mount --bind /run     "${ROOTFS_DIR}/run"
+  if ! mountpoint -q "${ROOTFS_DIR}/run"; then
+    mount --rbind /run "${ROOTFS_DIR}/run"
+    mount --make-rslave "${ROOTFS_DIR}/run"
+  fi
   cp --remove-destination /etc/resolv.conf "${ROOTFS_DIR}/etc/resolv.conf"
 }
 
