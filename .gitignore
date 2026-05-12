@@ -4,3 +4,5 @@ artifacts/
 *.tar.*
 *.img
 *.log
+wget-log*
+logs/
