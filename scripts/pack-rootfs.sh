@@ -66,10 +66,12 @@ archive="${REPO_ROOT}/artifacts/${stem}.tar.zst"
 # bind-mounts the host's /dev over ${ROOTFS_DIR}/dev before chrooting. The
 # rootfs/dev/ directory itself is kept (just empty) as the bind-mount target.
 
-# Refresh the in-rootfs copy of the entry-point script so edits made since
-# provisioning ship in the artifact.
+# Refresh the in-rootfs helper scripts so edits made since provisioning ship in
+# the artifact.
 install -m 0755 "${REPO_ROOT}/scripts/ros2-chroot.sh" \
   "${ROOTFS_DIR}/usr/local/bin/ros2-chroot.sh"
+install -m 0755 "${REPO_ROOT}/scripts/ros2-config.sh" \
+  "${ROOTFS_DIR}/usr/local/bin/ros2_config"
 
 stage=$(mktemp -d -t ros2-pack-XXXXXX)
 cleanup() {
@@ -137,6 +139,26 @@ With no argument, \`ros2-chroot.sh\` mounts the chroot support filesystems
 (\`/dev\`, \`/dev/pts\`, \`/proc\`, \`/sys\`, \`/run\`) and drops you into an
 interactive bash as the \`ros2\` user with the ROS 2 environment sourced and
 the workspace venv activated.
+
+## Optional desktop tools
+
+VS Code, Foxglove Desktop, and Firefox are not installed by default, keeping the
+base artifact smaller. To add or remove them later, enter the chroot and run:
+
+\`\`\`bash
+ros2_config
+\`\`\`
+
+For scripted use, run \`ros2_config status\`, \`ros2_config install vscode\`,
+\`ros2_config install foxglove\`, \`ros2_config install firefox\`, or the
+matching \`remove\` commands. GUI launches need a host display;
+\`ros2-chroot.sh\` forwards \`DISPLAY\` and \`XAUTHORITY\` when they are
+available.
+
+VS Code GitHub sign-in may not open your host browser automatically from inside
+the chroot. Use the login URL or device code that VS Code displays and open it
+in a host browser, or run \`ros2_config install firefox\` and use Firefox inside
+the chroot. Firefox is installed from Mozilla's apt repository, not snap.
 
 ## Commands
 

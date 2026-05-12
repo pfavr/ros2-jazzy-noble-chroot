@@ -77,6 +77,12 @@ ros2 pkg executables foxglove_bridge
 ros2 run xacro xacro --help
 ```
 
+Optional desktop tools such as VS Code, Foxglove Desktop, and Firefox are not installed by default. From inside the chroot, run the optional tools menu when you want them:
+
+```bash
+ros2_config
+```
+
 ## Layout
 
 Host checkout:
@@ -121,6 +127,7 @@ Lower-level scripts:
 | `scripts/install-rosdeps.sh` | Install source package dependencies with `rosdep`. |
 | `scripts/build-ros2.sh` | Build ROS 2 with colcon. |
 | `scripts/smoke-test.sh` | Verify `ros2`, demo executables, extra source packages, and `PyKDL`. |
+| `scripts/ros2-config.sh` | Installed inside the rootfs as `/usr/local/bin/ros2_config`; install, remove, upgrade, and inspect optional desktop tools. |
 | `scripts/pack-rootfs.sh` | Archive a finished rootfs into `artifacts/` as a self-contained `<stem>.tar.zst` (rootfs with `ros2-chroot.sh` baked in at `/usr/local/bin/`, plus a top-level symlink and metadata). |
 | `scripts/unpack-rootfs.sh` | Restore a packed rootfs archive (in-tree convenience wrapper). |
 | `scripts/ros2-chroot.sh` | Installed inside the rootfs at `/usr/local/bin/ros2-chroot.sh` by `provision-rootfs.sh`; exposed at the top of each packed artifact via a symlink. The recipient's daily entry point into the chroot. |
@@ -195,6 +202,35 @@ If rosdep gains or loses keys over time, override the skipped keys without editi
 ```bash
 ROSDEP_SKIP_KEYS="fastcdr rti-connext-dds-6.0.1 urdfdom_headers" ./scripts/install-rosdeps.sh
 ```
+
+## Optional desktop tools
+
+VS Code and Foxglove Desktop are deliberately left out of the base rootfs and packed artifacts. They are useful for some workflows, but they are large and can be installed later inside the writable chroot.
+
+Enter the ROS-ready shell, then run the menu:
+
+```bash
+./set_environment.sh
+ros2_config
+```
+
+The same tool has direct commands for scripted use:
+
+```bash
+ros2_config status
+ros2_config install vscode
+ros2_config install foxglove
+ros2_config install firefox
+ros2_config remove vscode
+ros2_config remove foxglove
+ros2_config remove firefox
+```
+
+`ros2_config install vscode` uses Microsoft's official `code` apt repository. `ros2_config install foxglove` downloads Foxglove Desktop's current Linux `.deb` for the chroot architecture; set `FOXGLOVE_DEB_URL` to use a pinned release or local mirror. `ros2_config install firefox` uses Mozilla's official apt repository with apt pinning, avoiding Ubuntu's snap-based browser packages.
+
+GUI launch needs a host display. The packed artifact entry point, `ros2-chroot.sh`, forwards `DISPLAY` and `XAUTHORITY` when they are available, so desktop apps can run over a local X11 session or SSH X forwarding. If you install optional tools before packing an artifact, those tools become part of that artifact.
+
+VS Code GitHub sign-in may not open your host browser automatically from inside the chroot. `ros2-chroot.sh` forwards X11 for GUI windows, but it does not connect the chroot to the host desktop's URL handlers, browser, or portal/session bus. Use the login URL or device code that VS Code displays and open it in a host browser, or run `ros2_config install firefox` and use Firefox inside the chroot.
 
 ## Python environment
 
