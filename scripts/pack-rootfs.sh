@@ -24,11 +24,11 @@ if [[ -f "${marker}" ]]; then
   fi
 fi
 
-# Compression level: override with ZSTD_LEVEL while iterating. Use a fast
-# level (3) by default; bump to 19 (or 22 --long) for release artifacts.
-#   ZSTD_LEVEL=3   ~5x faster pack, ~10-20% larger archive       (default)
-#   ZSTD_LEVEL=19  slow but tight; was the previous default
-ZSTD_LEVEL=${ZSTD_LEVEL:-3}
+# Compression level: override with ZSTD_LEVEL while iterating. Default is
+# 19 (slow, tight) since pack-rootfs.sh only runs when producing the
+# redistributable tarball. Drop to 3 for ~5x faster pack, ~10-20% larger
+# archive while iterating on the pack script itself.
+ZSTD_LEVEL=${ZSTD_LEVEL:-19}
 
 mkdir -p "${REPO_ROOT}/artifacts"
 
@@ -205,7 +205,7 @@ chown "${owner}" "${archive}"
 
 echo "Wrote ${archive}"
 echo "  size:           $(du -h "${archive}" | cut -f1)"
-echo "  zstd level:     ${ZSTD_LEVEL} (override with ZSTD_LEVEL=19 for release builds)"
+echo "  zstd level:     ${ZSTD_LEVEL} (override with ZSTD_LEVEL=3 for faster iteration)"
 echo
 echo "Recipient usage on a fresh host:"
 echo "  sudo tar xf $(basename "${archive}")   # sudo preserves ownership of in-chroot files"
