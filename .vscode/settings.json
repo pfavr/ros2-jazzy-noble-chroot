@@ -1,0 +1,14 @@
+{
+  "git.repositoryScanIgnoredFolders": [
+    "rootfs",
+    "artifacts"
+  ],
+  "files.watcherExclude": {
+    "**/artifacts/**": true,
+    "**/rootfs/**": true
+  },
+  "search.exclude": {
+    "**/artifacts/**": true,
+    "**/rootfs/**": true
+  }
+}

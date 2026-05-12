@@ -1,0 +1,6 @@
+rootfs/
+artifacts/
+*.tar
+*.tar.*
+*.img
+*.log
