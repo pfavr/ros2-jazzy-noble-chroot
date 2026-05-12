@@ -1,0 +1,13 @@
+repositories:
+  facontidavide/rosx_introspection:
+    type: git
+    url: https://github.com/facontidavide/rosx_introspection.git
+    version: 2.3.0
+  foxglove/foxglove-sdk:
+    type: git
+    url: https://github.com/foxglove/foxglove-sdk.git
+    version: ros-v3.2.6
+  ros/xacro:
+    type: git
+    url: https://github.com/ros/xacro.git
+    version: 2.1.1

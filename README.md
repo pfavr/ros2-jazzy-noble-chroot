@@ -9,8 +9,9 @@ The default target is `ROS_DISTRO=jazzy` on `UBUNTU_CODENAME=noble`. Other combi
 - Bootstraps an Ubuntu Noble root filesystem under `rootfs/`.
 - Installs ROS 2 Jazzy source-build dependencies inside the chroot.
 - Creates a Python tools environment at `/opt/ros2_ws/venv` (colcon, vcstool, rosdep).
-- Imports the ROS 2 Jazzy source manifest into `/opt/ros2_ws/src`.
+- Imports the ROS 2 Jazzy source manifest, plus the repository's extra source manifest, into `/opt/ros2_ws/src`.
 - Builds ROS 2 from source into `/opt/ros2_ws/install`.
+- Builds Foxglove Bridge, Foxglove messages, and xacro from source alongside ROS 2.
 - Provides `./set_environment.sh` for entering a ROS-ready shell.
 
 The checkout can live anywhere on the host. Inside the chroot, the ROS workspace always lives at `/opt/ros2_ws`, which keeps build paths stable across machines.
@@ -67,6 +68,15 @@ ros2 run demo_nodes_cpp talker
 ros2 run demo_nodes_py listener
 ```
 
+Check the extra source-built tools:
+
+```bash
+ros2 pkg prefix foxglove_bridge
+ros2 pkg prefix foxglove_msgs
+ros2 pkg executables foxglove_bridge
+ros2 run xacro xacro --help
+```
+
 ## Layout
 
 Host checkout:
@@ -107,10 +117,10 @@ Lower-level scripts:
 | `scripts/check-host.sh` | Check host architecture and required commands. |
 | `scripts/create-rootfs.sh` | Bootstrap Ubuntu Noble into `rootfs/`. |
 | `scripts/provision-rootfs.sh` | Install chroot build tools, ROS apt source, venv tools, and rosdep data. |
-| `scripts/fetch-sources.sh` | Import ROS 2 Jazzy repositories with `vcstool`. |
+| `scripts/fetch-sources.sh` | Import ROS 2 Jazzy repositories and repo-local extra source repositories with `vcstool`. |
 | `scripts/install-rosdeps.sh` | Install source package dependencies with `rosdep`. |
 | `scripts/build-ros2.sh` | Build ROS 2 with colcon. |
-| `scripts/smoke-test.sh` | Verify `ros2`, demo executables, and `PyKDL`. |
+| `scripts/smoke-test.sh` | Verify `ros2`, demo executables, extra source packages, and `PyKDL`. |
 | `scripts/pack-rootfs.sh` | Archive a finished rootfs into `artifacts/` as a self-contained `<stem>.tar.zst` (rootfs with `ros2-chroot.sh` baked in at `/usr/local/bin/`, plus a top-level symlink and metadata). |
 | `scripts/unpack-rootfs.sh` | Restore a packed rootfs archive (in-tree convenience wrapper). |
 | `scripts/ros2-chroot.sh` | Installed inside the rootfs at `/usr/local/bin/ros2-chroot.sh` by `provision-rootfs.sh`; exposed at the top of each packed artifact via a symlink. The recipient's daily entry point into the chroot. |
@@ -141,6 +151,24 @@ By default, `scripts/fetch-sources.sh` imports the live ROS 2 Jazzy manifest fro
 
 ```text
 https://raw.githubusercontent.com/ros2/ros2/jazzy/ros2.repos
+```
+
+It then imports the repo-local extra source manifest from:
+
+```text
+ros2-extra.repos
+```
+
+That manifest pins the source-built extras that are not part of the upstream ROS 2 manifest: Foxglove Bridge, Foxglove messages, `rosx_introspection`, and xacro. Disable it with `ROS2_EXTRA_REPOS_FILE=` or point it at another host-side file:
+
+```bash
+ROS2_EXTRA_REPOS_FILE=/path/to/my-extra.repos ./scripts/fetch-sources.sh
+```
+
+Append additional chroot-visible manifest paths or URLs with `ROS2_EXTRA_REPOS_URLS`:
+
+```bash
+ROS2_EXTRA_REPOS_URLS='https://example.invalid/other.repos /tmp/local-extra.repos' ./scripts/fetch-sources.sh
 ```
 
 For repeatable rebuilds, save a known-good manifest and point the fetch step at it. The path or URL is consumed from inside the chroot, so use a URL or copy the file into `rootfs/` first:
