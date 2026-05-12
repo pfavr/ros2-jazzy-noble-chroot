@@ -183,43 +183,79 @@ cmd_umount() {
 
   local rootfs_path
   rootfs_path=$(cd -P -- "${ROOTFS_DIR}" && pwd)
-  local -a mountpoints=()
-  mapfile -t mountpoints < <(
-    findmnt -rn -o TARGET \
-      | awk -v root="${rootfs_path}" '($0 == root) || (substr($0, 1, length(root) + 1) == root "/") { print length($0) "\t" $0 }' \
-      | sort -rn \
-      | cut -f2-
-  )
-  for mp in "${mountpoints[@]}"; do
-    if mountpoint -q "${mp}"; then
-      umount "${mp}" || umount -l "${mp}"
-    fi
+
+  # Best-effort detach: walk deepest-first, prefer plain umount, fall back to
+  # lazy umount on EBUSY. Then *verify* nothing is left mounted before
+  # returning success -- the caller (and downstream "safe to rm -rf"
+  # messaging) depends on this post-condition.
+  local attempt
+  for attempt in 1 2; do
+    local -a mountpoints=()
+    mapfile -t mountpoints < <(
+      findmnt -rn -o TARGET \
+        | awk -v root="${rootfs_path}" '($0 == root) || (substr($0, 1, length(root) + 1) == root "/") { print length($0) "\t" $0 }' \
+        | sort -rn \
+        | cut -f2-
+    )
+    [[ ${#mountpoints[@]} -eq 0 ]] && break
+
+    local mp
+    for mp in "${mountpoints[@]}"; do
+      mountpoint -q "${mp}" || continue
+      umount "${mp}" 2>/dev/null || umount -l "${mp}" 2>/dev/null || true
+    done
   done
+
+  # Final verification: re-query findmnt and fail loudly if anything is left.
+  local -a still=()
+  mapfile -t still < <(
+    findmnt -rn -o TARGET \
+      | awk -v root="${rootfs_path}" '($0 == root) || (substr($0, 1, length(root) + 1) == root "/") { print $0 }'
+  )
+  if (( ${#still[@]} > 0 )); then
+    echo "error: ${#still[@]} mount(s) under ${rootfs_path} could not be released:" >&2
+    printf '  %s\n' "${still[@]}" >&2
+    echo "Hint: a process inside the chroot may be holding files open. Try:" >&2
+    echo "  sudo lsof +D ${rootfs_path}    # which processes" >&2
+    echo "  sudo fuser -vm ${rootfs_path}  # which mount" >&2
+    echo "Do NOT 'rm -rf' the rootfs while mounts remain -- you could wipe" >&2
+    echo "host /dev, /proc, /sys, or /run contents through the bind mounts." >&2
+    return 1
+  fi
+
+  return 0
 }
 
 # Called from cmd_enter's EXIT trap after the chroot returns.
 # - Unregisters this pid.
-# - If no other sessions are alive, unmounts the support filesystems and tells
-#   the user the rootfs tree is now safe to delete.
+# - If no other sessions are alive, unmounts the support filesystems and only
+#   then -- after verifying mounts are truly gone -- tells the user the
+#   rootfs tree is safe to delete.
 # - Otherwise prints the remaining sessions so it's obvious why mounts stay up.
 enter_cleanup() {
   session_unregister
   local live
   live=$(session_count_live)
   echo
-  if (( live == 0 )); then
-    echo "[ros2-chroot] last session ended; unmounting support filesystems..."
-    cmd_umount
-    if chroot_is_mounted; then
-      echo "[ros2-chroot] warning: some mounts could not be released." >&2
-    else
-      echo "[ros2-chroot] all mounts released. The rootfs tree at"
-      echo "              ${ROOTFS_DIR}"
-      echo "              is now safe to 'rm -rf' if you wish to delete it."
-    fi
-  else
+  if (( live > 0 )); then
     echo "[ros2-chroot] ${live} other chroot session(s) still active; mounts left in place."
     echo "[ros2-chroot] run '${SCRIPT_NAME} status' for details."
+    return 0
+  fi
+
+  echo "[ros2-chroot] last session ended; unmounting support filesystems..."
+  if cmd_umount && ! chroot_is_mounted; then
+    echo "[ros2-chroot] verified: all mounts released."
+    echo "[ros2-chroot] the rootfs tree at"
+    echo "              ${ROOTFS_DIR}"
+    echo "              is now safe to 'rm -rf' if you wish to delete it."
+  else
+    echo "[ros2-chroot] WARNING: cleanup did not finish cleanly." >&2
+    echo "[ros2-chroot] DO NOT 'rm -rf' the rootfs yet -- a remaining bind mount" >&2
+    echo "[ros2-chroot] would let the delete propagate into host /dev, /proc," >&2
+    echo "[ros2-chroot] /sys or /run. Run '${SCRIPT_NAME} status' to see what" >&2
+    echo "[ros2-chroot] is still mounted, free the offending files, then" >&2
+    echo "[ros2-chroot] 'sudo ${SCRIPT_NAME} umount' (add --force if needed)." >&2
   fi
 }
 
