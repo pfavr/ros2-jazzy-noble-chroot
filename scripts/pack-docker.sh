@@ -216,8 +216,8 @@ cleanup() {
 trap cleanup EXIT
 
 xauth_merge_nlist() {
-  local source=$1
-  local display_number=$2
+  local source=\$1
+  local display_number=\$2
   local query
   local -a queries=(
     "\${DISPLAY}"
@@ -249,7 +249,7 @@ xauth_merge_nlist() {
 }
 
 xauth_merge_sudo_user() {
-  local display_number=$1
+  local display_number=\$1
   local query
   local -a queries=(
     "\${DISPLAY}"
