@@ -149,9 +149,12 @@ base artifact smaller. To add or remove them later, enter the chroot and run:
 ros2_config
 \`\`\`
 
-For scripted use, run \`ros2_config status\`, \`ros2_config install vscode\`,
+For scripted use, run \`ros2_config status\`, \`ros2_config install all\`,
+\`ros2_config install vscode firefox\`, \`ros2_config install vscode\`,
 \`ros2_config install foxglove\`, \`ros2_config install firefox\`, or the
-matching \`remove\` commands. GUI launches need a host display;
+matching \`remove\` commands. The menu also supports installing all missing
+tools or selecting several tools to install in one pass. GUI launches need a
+host display;
 \`ros2-chroot.sh\` forwards \`DISPLAY\` and \`XAUTHORITY\` when they are
 available.
 

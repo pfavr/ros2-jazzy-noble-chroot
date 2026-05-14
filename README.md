@@ -24,24 +24,28 @@ Install host prerequisites first. On Debian/Ubuntu hosts:
 
 ```bash
 sudo apt update
-sudo apt install -y debootstrap
+sudo apt install -y debootstrap zstd
 ```
 
-`zstd` is optional unless you want to pack or unpack compressed rootfs archives.
+`zstd` is needed for the default artifact-producing build. It is optional only
+when you use `./build_all.sh --no-artifacts` and do not need to pack or unpack
+compressed rootfs archives.
 
-Then run the full build:
+Then run the full release build. This builds ROS 2, runs the smoke test, and
+packs a redistributable rootfs archive under `artifacts/`:
 
 ```bash
 ./build_all.sh
 ```
 
-To also create a redistributable rootfs archive under `artifacts/` after the smoke test passes:
+For an incremental development build, skip packaging and use colcon's
+`--symlink-install` layout:
 
 ```bash
-./build_all.sh --artifacts
+./build_all.sh --no-artifacts
 ```
 
-The equivalent manual sequence is:
+The equivalent manual sequence for the default release flow is:
 
 ```bash
 ./scripts/check-host.sh
@@ -50,7 +54,14 @@ The equivalent manual sequence is:
 ./scripts/fetch-sources.sh
 ./scripts/build-ros2.sh
 ./scripts/smoke-test.sh
+./scripts/pack-rootfs.sh
 ```
+
+The full source build is large and can take several hours. For the default
+release flow, plan for tens of gigabytes of free disk space for the rootfs,
+source checkout, build tree, install tree, logs, and compressed artifact. More
+RAM allows higher parallelism, but the defaults are intentionally moderate; if
+the build machine starts swapping, lower `WORKERS` or `BUILD_JOBS`.
 
 Enter a ROS-ready shell:
 
@@ -113,7 +124,7 @@ Inside the chroot:
 
 | Script | Purpose |
 | --- | --- |
-| `build_all.sh` | Run the complete check, create, provision, fetch, build, and smoke-test flow. Use `--artifacts` to pack the finished rootfs. |
+| `build_all.sh` | Run the complete check, create, provision, fetch, build, smoke-test, and rootfs-packaging flow. Use `--no-artifacts` for an incremental dev build without packing. |
 | `clean_all.sh` | Remove generated rootfs, logs, and artifacts. Use `--keep-artifacts` to retain packed rootfs archives. |
 
 Lower-level scripts:
@@ -214,10 +225,15 @@ Enter the ROS-ready shell, then run the menu:
 ros2_config
 ```
 
+The menu can install all missing desktop tools, or select several tools to
+install in one pass.
+
 The same tool has direct commands for scripted use:
 
 ```bash
 ros2_config status
+ros2_config install all
+ros2_config install vscode firefox
 ros2_config install vscode
 ros2_config install foxglove
 ros2_config install firefox
@@ -343,17 +359,28 @@ zstd -dc ros2-jazzy-noble-docker.tar.zst | docker import \
   - ros2-jazzy-noble:sourcebuilt
 ```
 
-Then run it with ROS-friendly host integration:
+For a one-off throwaway container, run Docker directly with ROS-friendly host
+integration:
 
 ```bash
 docker run --rm -it --network=host --ipc=host --init ros2-jazzy-noble:sourcebuilt
 ```
 
-Or use the generated run helper, which adds the same ROS-friendly Docker flags
-plus X11 GUI forwarding:
+For day-to-day use, use the generated run helper. It adds the same ROS-friendly
+Docker flags plus X11 GUI forwarding, and by default it creates or reuses a
+persistent container named `ros2-jazzy-noble-sourcebuilt`, so changes made
+inside the container are still there next time:
 
 ```bash
 ./ros2-jazzy-noble-docker-run.sh
+```
+
+Remove the persistent container when you want a fresh filesystem, or opt into
+the old throwaway behavior for a single run:
+
+```bash
+docker rm -f ros2-jazzy-noble-sourcebuilt
+ROS2_DOCKER_PERSIST=0 ./ros2-jazzy-noble-docker-run.sh
 ```
 
 If your user is not in the `docker` group, running the helper with `sudo` is
@@ -371,11 +398,13 @@ Pass a command after the script name to run something specific:
 ./ros2-jazzy-noble-docker-run.sh ros2 run demo_nodes_cpp talker
 ```
 
-The helper uses the `ros2-jazzy-noble:sourcebuilt` image by default. Override it
-with `ROS2_DOCKER_IMAGE` if you import or build with another tag:
+The helper uses the `ros2-jazzy-noble:sourcebuilt` image and
+`ros2-jazzy-noble-sourcebuilt` container by default. Override them with
+`ROS2_DOCKER_IMAGE` and `ROS2_DOCKER_CONTAINER` if you import or build with
+another tag, or want separate persistent containers:
 
 ```bash
-ROS2_DOCKER_IMAGE=my-ros2:test ./ros2-jazzy-noble-docker-run.sh
+ROS2_DOCKER_IMAGE=my-ros2:test ROS2_DOCKER_CONTAINER=my-ros2-test ./ros2-jazzy-noble-docker-run.sh
 ```
 
 The helper defaults to `--security-opt seccomp=unconfined`, which avoids common
@@ -406,7 +435,7 @@ docker build -f ros2-jazzy-noble-docker.Dockerfile -t ros2-jazzy-noble:sourcebui
 ```
 
 The run helper is the preferred GUI path on an X11 desktop. The equivalent
-manual command is:
+manual throwaway command is:
 
 ```bash
 docker run --rm -it --network=host --ipc=host --init \

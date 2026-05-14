@@ -24,6 +24,8 @@ Manage optional desktop tools inside this ROS 2 chroot.
 Commands:
   status                 Show optional tool installation status.
   install vscode         Install Visual Studio Code desktop.
+  install all            Install all missing optional desktop tools.
+  install TOOL [...]     Install one or more tools: vscode, foxglove, firefox.
   remove vscode          Remove Visual Studio Code desktop.
   install foxglove       Install Foxglove Desktop.
   remove foxglove        Remove Foxglove Desktop.
@@ -119,14 +121,128 @@ show_status() {
   status_text
 }
 
+tool_package() {
+  case "$1" in
+    vscode) say code ;;
+    foxglove) say foxglove-studio ;;
+    firefox) say firefox ;;
+    *) die "Unknown optional tool: $1" ;;
+  esac
+}
+
+tool_label() {
+  case "$1" in
+    vscode) say "VS Code desktop" ;;
+    foxglove) say "Foxglove Desktop" ;;
+    firefox) say "Firefox browser" ;;
+    *) die "Unknown optional tool: $1" ;;
+  esac
+}
+
+normalize_tool_name() {
+  case "$1" in
+    vscode|code) say vscode ;;
+    foxglove|foxglove-studio) say foxglove ;;
+    firefox|browser) say firefox ;;
+    *) die "Unknown optional tool: $1" ;;
+  esac
+}
+
+all_tools() {
+  say vscode
+  say foxglove
+  say firefox
+}
+
+any_tool_missing() {
+  ! package_installed code || ! package_installed foxglove-studio || ! package_installed firefox
+}
+
+installable_tool_entries() {
+  local tool pkg label
+  while IFS= read -r tool; do
+    [[ -z "${tool}" ]] && continue
+    pkg=$(tool_package "${tool}")
+    if ! package_installed "${pkg}"; then
+      label=$(tool_label "${tool}")
+      printf '%s|%s|not installed\n' "${tool}" "${label}"
+    fi
+  done < <(all_tools)
+}
+
+install_tool_by_name() {
+  case "$1" in
+    vscode) install_vscode ;;
+    foxglove) install_foxglove ;;
+    firefox) install_firefox ;;
+    *) die "Unknown optional tool: $1" ;;
+  esac
+}
+
+join_labels() {
+  local label joined=""
+  for label in "$@"; do
+    [[ -n "${joined}" ]] && joined+=", "
+    joined+="${label}"
+  done
+  say "${joined}"
+}
+
+install_selected_tools() {
+  ensure_chroot
+
+  local requested tool normalized pkg label old_assume_yes summary
+  local -a tools missing labels
+  if (( $# == 0 )); then
+    die "Usage: ${SCRIPT_NAME} install {vscode|foxglove|firefox|all}"
+  fi
+
+  for requested in "$@"; do
+    if [[ "${requested}" == "all" ]]; then
+      while IFS= read -r tool; do
+        tools+=("${tool}")
+      done < <(all_tools)
+    else
+      normalized=$(normalize_tool_name "${requested}")
+      tools+=("${normalized}")
+    fi
+  done
+
+  for tool in "${tools[@]}"; do
+    pkg=$(tool_package "${tool}")
+    label=$(tool_label "${tool}")
+    if package_installed "${pkg}"; then
+      say "${label} is already installed."
+    else
+      missing+=("${tool}")
+      labels+=("${label}")
+    fi
+  done
+
+  if (( ${#missing[@]} == 0 )); then
+    say "Selected optional desktop tools are already installed."
+    return 0
+  fi
+
+  summary=$(join_labels "${labels[@]}")
+  confirm "Install ${summary} into this writable chroot?" || return 0
+
+  old_assume_yes=${ASSUME_YES:-0}
+  ASSUME_YES=1
+  for tool in "${missing[@]}"; do
+    install_tool_by_name "${tool}"
+  done
+  ASSUME_YES=${old_assume_yes}
+}
+
 confirm() {
   local prompt=$1
   if [[ "${ASSUME_YES:-0}" == "1" || ! -t 0 ]]; then
     return 0
   fi
   local answer
-  read -r -p "${prompt} [y/N] " answer
-  [[ "${answer}" == "y" || "${answer}" == "Y" || "${answer}" == "yes" || "${answer}" == "YES" ]]
+  read -r -p "${prompt} [Y/n] " answer
+  [[ -z "${answer}" || "${answer}" == "y" || "${answer}" == "Y" || "${answer}" == "yes" || "${answer}" == "YES" ]]
 }
 
 warn_display() {
@@ -335,6 +451,7 @@ upgrade_tools() {
 
 run_choice() {
   case "$1" in
+    install-all) install_selected_tools all ;;
     install-vscode) install_vscode ;;
     remove-vscode) remove_vscode ;;
     install-foxglove) install_foxglove ;;
@@ -382,6 +499,70 @@ any_tool_installed() {
   package_installed code || package_installed foxglove-studio || package_installed firefox
 }
 
+whiptail_install_selected() {
+  command -v whiptail >/dev/null 2>&1 || return 1
+  [[ -t 1 ]] || return 1
+
+  local entries selection tool label desc args
+  local -a selected
+  entries=$(installable_tool_entries)
+  if [[ -z "${entries}" ]]; then
+    say "All optional desktop tools are already installed."
+    return 0
+  fi
+
+  args=(--title "ros2_config" --checklist "Select optional desktop tools to install" 20 76 10)
+  while IFS='|' read -r tool label desc; do
+    [[ -z "${tool}" ]] && continue
+    args+=("${tool}" "${label} [${desc}]" ON)
+  done <<<"${entries}"
+
+  selection=$(whiptail "${args[@]}" 3>&1 1>&2 2>&3) || return 0
+  selection=${selection//\"/}
+  [[ -z "${selection}" ]] && return 0
+  read -r -a selected <<<"${selection}"
+  install_selected_tools "${selected[@]}"
+}
+
+text_install_selected() {
+  local entries tool label desc choice token
+  local idx=1
+  local -a tools labels selected
+  entries=$(installable_tool_entries)
+  if [[ -z "${entries}" ]]; then
+    say "All optional desktop tools are already installed."
+    return 0
+  fi
+
+  say ""
+  say "Install optional desktop tools"
+  while IFS='|' read -r tool label desc; do
+    [[ -z "${tool}" ]] && continue
+    tools+=("${tool}")
+    labels+=("${label}")
+    printf '  %d) %-26s [%s]\n' "${idx}" "${label}" "${desc}"
+    idx=$((idx + 1))
+  done <<<"${entries}"
+  say "  all) All missing optional tools"
+  printf 'Select tools (Enter for all): '
+  read -r choice || return 0
+  choice=${choice//,/ }
+  if [[ -z "${choice}" || "${choice}" == "all" ]]; then
+    install_selected_tools all
+    return 0
+  fi
+
+  for token in ${choice}; do
+    if [[ "${token}" =~ ^[0-9]+$ && ${token} -ge 1 && ${token} -le ${#tools[@]} ]]; then
+      selected+=("${tools[$((token - 1))]}")
+    else
+      selected+=("$(normalize_tool_name "${token}")")
+    fi
+  done
+
+  install_selected_tools "${selected[@]}"
+}
+
 whiptail_menu() {
   command -v whiptail >/dev/null 2>&1 || return 1
   [[ -t 1 ]] || return 1
@@ -394,12 +575,20 @@ whiptail_menu() {
       [[ -z "${action}" ]] && continue
       args+=("${action}" "${label} [${desc}]")
     done <<<"${entries}"
+    if any_tool_missing; then
+      args+=(install-all "Install all missing optional tools")
+      args+=(install-selected "Install selected optional tools")
+    fi
     if any_tool_installed; then
       args+=(upgrade "Upgrade installed optional tools")
     fi
     args+=(quit "Exit")
 
     choice=$(whiptail "${args[@]}" 3>&1 1>&2 2>&3) || return 0
+    if [[ "${choice}" == "install-selected" ]]; then
+      whiptail_install_selected || return 0
+      continue
+    fi
     run_choice "${choice}" || return 0
   done
 }
@@ -425,8 +614,17 @@ text_menu() {
       printf '  %d) %-26s [%s]\n' "$((idx + 1))" "${labels[$idx]}" "${descs[$idx]}"
     done
     local upgrade_idx=0
+    local install_all_idx=0
+    local install_selected_idx=0
+    if any_tool_missing; then
+      install_all_idx=$(( ${#actions[@]} + 1 ))
+      printf '  %d) %s\n' "${install_all_idx}" "Install all missing optional tools"
+      install_selected_idx=$(( ${#actions[@]} + 2 ))
+      printf '  %d) %s\n' "${install_selected_idx}" "Install selected optional tools"
+    fi
     if any_tool_installed; then
       upgrade_idx=$(( ${#actions[@]} + 1 ))
+      (( install_selected_idx > 0 )) && upgrade_idx=$((install_selected_idx + 1))
       printf '  %d) %s\n' "${upgrade_idx}" "Upgrade installed optional tools"
     fi
     say "  0) Exit"
@@ -437,6 +635,14 @@ text_menu() {
       '') continue ;;
       *)
         if [[ "${choice}" =~ ^[0-9]+$ ]]; then
+          if (( install_all_idx > 0 && choice == install_all_idx )); then
+            run_choice install-all
+            continue
+          fi
+          if (( install_selected_idx > 0 && choice == install_selected_idx )); then
+            text_install_selected
+            continue
+          fi
           if (( upgrade_idx > 0 && choice == upgrade_idx )); then
             run_choice upgrade
             continue
@@ -477,10 +683,8 @@ main() {
     status) ensure_chroot; show_status ;;
     install)
       case "${1:-}" in
-        vscode|code) install_vscode ;;
-        foxglove|foxglove-studio) install_foxglove ;;
-        firefox|browser) install_firefox ;;
-        *) die "Usage: ${SCRIPT_NAME} install {vscode|foxglove|firefox}" ;;
+        all|vscode|code|foxglove|foxglove-studio|firefox|browser) install_selected_tools "$@" ;;
+        *) die "Usage: ${SCRIPT_NAME} install {vscode|foxglove|firefox|all}" ;;
       esac
       ;;
     remove|uninstall)
