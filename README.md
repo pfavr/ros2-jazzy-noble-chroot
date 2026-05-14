@@ -254,6 +254,12 @@ This writes a single self-contained tarball into `artifacts/`:
 artifacts/ros2-jazzy-noble-rootfs-YYYYMMDD.tar.zst
 ```
 
+To create a Docker-friendly rootfs archive from the same built environment:
+
+```bash
+./scripts/pack-docker.sh
+```
+
 Extracting it produces a date-stamped directory with everything the recipient needs:
 
 ```text
@@ -279,6 +285,119 @@ After that, the everyday command after a reboot or in a new terminal is simply:
 
 ```bash
 cd ros2-jazzy-noble-rootfs-YYYYMMDD && sudo ./ros2-chroot.sh
+```
+
+### Use with Docker
+
+`scripts/pack-docker.sh` writes three files under `artifacts/`:
+
+```text
+artifacts/ros2-jazzy-noble-docker.tar.zst
+artifacts/ros2-jazzy-noble-docker.Dockerfile
+artifacts/ros2-jazzy-noble-docker-run.sh
+```
+
+The Docker tarball has the root filesystem at archive root and includes
+`/usr/local/bin/ros2-docker-entrypoint.sh`, which activates
+`/opt/ros2_ws/venv`, sources `/opt/ros2_ws/install/local_setup.bash`, and then
+runs the requested command. The chroot artifact and Docker artifact are built
+from the same rootfs; optional tools already installed with `ros2_config` are
+included in both.
+
+Copy these generated files to the Docker host:
+
+```text
+ros2-jazzy-noble-docker.tar.zst
+ros2-jazzy-noble-docker.Dockerfile
+ros2-jazzy-noble-docker-run.sh
+```
+
+The most direct load path is `docker import` from the decompressed rootfs tar
+stream:
+
+```bash
+zstd -dc ros2-jazzy-noble-docker.tar.zst | docker import \
+  --change 'ENTRYPOINT ["/usr/local/bin/ros2-docker-entrypoint.sh"]' \
+  --change 'CMD ["bash"]' \
+  --change 'USER ros2' \
+  --change 'WORKDIR /opt/ros2_ws' \
+  --change 'ENV ROS_DISTRO=jazzy ROS_VERSION=2 ROS_PYTHON_VERSION=3 LANG=C.UTF-8 LC_ALL=C.UTF-8' \
+  - ros2-jazzy-noble:sourcebuilt
+```
+
+Then run it with ROS-friendly host integration:
+
+```bash
+docker run --rm -it --network=host --ipc=host --init ros2-jazzy-noble:sourcebuilt
+```
+
+Or use the generated run helper, which adds the same ROS-friendly Docker flags
+plus X11 GUI forwarding:
+
+```bash
+./ros2-jazzy-noble-docker-run.sh
+```
+
+If your user is not in the `docker` group, running the helper with `sudo` is
+supported; it will still look up the invoking user's Xauthority cookie for GUI
+apps:
+
+```bash
+sudo ./ros2-jazzy-noble-docker-run.sh
+```
+
+Pass a command after the script name to run something specific:
+
+```bash
+./ros2-jazzy-noble-docker-run.sh rviz2
+./ros2-jazzy-noble-docker-run.sh ros2 run demo_nodes_cpp talker
+```
+
+The helper uses the `ros2-jazzy-noble:sourcebuilt` image by default. Override it
+with `ROS2_DOCKER_IMAGE` if you import or build with another tag:
+
+```bash
+ROS2_DOCKER_IMAGE=my-ros2:test ./ros2-jazzy-noble-docker-run.sh
+```
+
+The helper defaults to `--security-opt seccomp=unconfined`, which avoids common
+Firefox and Electron sandbox failures in Docker. To use Docker's default seccomp
+profile instead:
+
+```bash
+ROS2_DOCKER_SECCOMP=default ./ros2-jazzy-noble-docker-run.sh
+```
+
+`--network=host` lets DDS discovery and ROS 2 traffic use the host network
+directly. `--ipc=host` makes the host shared-memory namespace visible too,
+which matches the chroot's `/dev/shm` behavior and avoids common Fast DDS SHM
+transport surprises.
+
+Smoke-test the imported image:
+
+```bash
+docker run --rm --network=host --ipc=host --init ros2-jazzy-noble:sourcebuilt ros2 --help >/dev/null
+docker run --rm --network=host --ipc=host --init ros2-jazzy-noble:sourcebuilt ros2 run demo_nodes_cpp talker
+```
+
+The generated Dockerfile is an alternative if you prefer a normal Docker build
+from the same two files:
+
+```bash
+docker build -f ros2-jazzy-noble-docker.Dockerfile -t ros2-jazzy-noble:sourcebuilt .
+```
+
+The run helper is the preferred GUI path on an X11 desktop. The equivalent
+manual command is:
+
+```bash
+docker run --rm -it --network=host --ipc=host --init \
+  --security-opt seccomp=unconfined \
+  -e DISPLAY \
+  -e XAUTHORITY=/tmp/.ros2-docker.Xauthority \
+  -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -v "$HOME/.Xauthority:/tmp/.ros2-docker.Xauthority:ro" \
+  ros2-jazzy-noble:sourcebuilt
 ```
 
 `ros2-chroot.sh` supports `enter | mount | umount | smoke-test | status | info | help`. `enter` is the default when no argument is given. Override the rootfs location with `ROOTFS_DIR=/srv/ros2/rootfs sudo -E ./ros2-chroot.sh`.
