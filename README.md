@@ -289,12 +289,13 @@ cd ros2-jazzy-noble-rootfs-YYYYMMDD && sudo ./ros2-chroot.sh
 
 ### Use with Docker
 
-`scripts/pack-docker.sh` writes three files under `artifacts/`:
+`scripts/pack-docker.sh` writes four files under `artifacts/`:
 
 ```text
 artifacts/ros2-jazzy-noble-docker.tar.zst
 artifacts/ros2-jazzy-noble-docker.Dockerfile
 artifacts/ros2-jazzy-noble-docker-run.sh
+artifacts/ros2-jazzy-noble-install-docker-debian.sh
 ```
 
 The Docker tarball has the root filesystem at archive root and includes
@@ -310,6 +311,23 @@ Copy these generated files to the Docker host:
 ros2-jazzy-noble-docker.tar.zst
 ros2-jazzy-noble-docker.Dockerfile
 ros2-jazzy-noble-docker-run.sh
+ros2-jazzy-noble-install-docker-debian.sh
+```
+
+On a fresh Debian Trixie host, or a Debian sid host where you want to use
+Docker's Trixie apt repository, install Docker first:
+
+```bash
+sudo ./ros2-jazzy-noble-install-docker-debian.sh
+```
+
+The installer adds Docker's official apt repository, installs Docker Engine,
+Buildx, and the Compose plugin, and adds the invoking user to the `docker`
+group. Log out and back in, or run `newgrp docker`, before using `docker`
+without `sudo`. Override the Docker repository codename when needed:
+
+```bash
+sudo ./ros2-jazzy-noble-install-docker-debian.sh --codename trixie
 ```
 
 The most direct load path is `docker import` from the decompressed rootfs tar

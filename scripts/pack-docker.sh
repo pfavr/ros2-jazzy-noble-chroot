@@ -12,6 +12,7 @@ Create Docker-friendly artifacts from the built rootfs:
   artifacts/ros2-${ROS_DISTRO}-${UBUNTU_CODENAME}-docker.tar.zst
   artifacts/ros2-${ROS_DISTRO}-${UBUNTU_CODENAME}-docker.Dockerfile
   artifacts/ros2-${ROS_DISTRO}-${UBUNTU_CODENAME}-docker-run.sh
+  artifacts/ros2-${ROS_DISTRO}-${UBUNTU_CODENAME}-install-docker-debian.sh
 
 The tarball contains the rootfs contents at archive root, plus a Docker
 entrypoint at /usr/local/bin/ros2-docker-entrypoint.sh. It is suitable for
@@ -51,9 +52,11 @@ image_name="ros2-${ROS_DISTRO}-${UBUNTU_CODENAME}:sourcebuilt"
 archive_name="ros2-${ROS_DISTRO}-${UBUNTU_CODENAME}-docker.tar.zst"
 dockerfile_name="ros2-${ROS_DISTRO}-${UBUNTU_CODENAME}-docker.Dockerfile"
 run_script_name="ros2-${ROS_DISTRO}-${UBUNTU_CODENAME}-docker-run.sh"
+install_docker_script_name="ros2-${ROS_DISTRO}-${UBUNTU_CODENAME}-install-docker-debian.sh"
 archive="${REPO_ROOT}/artifacts/${archive_name}"
 dockerfile="${REPO_ROOT}/artifacts/${dockerfile_name}"
 run_script="${REPO_ROOT}/artifacts/${run_script_name}"
+install_docker_script="${REPO_ROOT}/artifacts/${install_docker_script_name}"
 
 mkdir -p "${REPO_ROOT}/artifacts"
 
@@ -319,14 +322,16 @@ exec docker run --rm "\${docker_tty[@]}" \
   "\${IMAGE}" "\$@"
 RUNSCRIPT
 chmod 0755 "${run_script}"
+install -m 0755 "${REPO_ROOT}/scripts/install-docker-debian.sh" "${install_docker_script}"
 
 owner="${SUDO_UID:-$(id -u)}:${SUDO_GID:-$(id -g)}"
-chown "${owner}" "${archive}" "${dockerfile}" "${run_script}"
+chown "${owner}" "${archive}" "${dockerfile}" "${run_script}" "${install_docker_script}"
 
 echo "Wrote Docker artifacts:"
 echo "  ${archive}"
 echo "  ${dockerfile}"
 echo "  ${run_script}"
+echo "  ${install_docker_script}"
 echo "  zstd level: ${ZSTD_LEVEL} (override with ZSTD_LEVEL=3 for faster iteration)"
 echo
 echo "Import on another machine:"
