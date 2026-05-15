@@ -1,0 +1,30 @@
+name: robot-dev
+
+x-dev-common: &dev-common
+  network_mode: host
+  ipc: host
+  init: true
+  stdin_open: true
+  tty: true
+  environment:
+    ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-10}
+  volumes:
+    - ..:/workspaces/robot:rw
+    - ${ROS_BAGS_DIR:-/data/rosbags}:/bags:rw
+
+services:
+  dev:
+    <<: *dev-common
+    image: ${ROS2_DEV_IMAGE:-ros2-jazzy:dev}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: dev
+    working_dir: /workspaces/robot
+    command: bash
+
+  foxglove-bridge:
+    <<: *dev-common
+    image: ${ROS2_DEV_IMAGE:-ros2-jazzy:dev}
+    restart: unless-stopped
+    command: ros2 launch foxglove_bridge foxglove_bridge_launch.xml

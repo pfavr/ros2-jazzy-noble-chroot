@@ -1,0 +1,21 @@
+name: robot-bagtools
+
+services:
+  bagtools:
+    image: ${ROS2_BAGTOOLS_IMAGE:-ros2-jazzy:bagtools}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: bagtools
+    network_mode: host
+    ipc: host
+    init: true
+    stdin_open: true
+    tty: true
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-40}
+    volumes:
+      - ${ROS_BAGS_DIR:-/data/rosbags}:/bags:rw
+      - ../configs/replay:/configs/replay:ro
+    working_dir: /bags
+    command: bash

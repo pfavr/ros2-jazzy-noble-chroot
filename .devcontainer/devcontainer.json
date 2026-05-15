@@ -1,0 +1,25 @@
+{
+  "name": "ROS 2 Jazzy Robot Dev",
+  "dockerComposeFile": [
+    "../docker/compose.dev.yml"
+  ],
+  "service": "dev",
+  "workspaceFolder": "/workspaces/robot",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-vscode.cmake-tools",
+        "ms-iot.vscode-ros",
+        "redhat.vscode-yaml",
+        "timonwong.shellcheck"
+      ]
+    }
+  },
+  "remoteEnv": {
+    "ROS_DOMAIN_ID": "10"
+  }
+}

@@ -1,96 +1,223 @@
-# Layered Docker workflow
+# Docker workflow
 
-This directory contains the Docker-first path for ROS 2 Jazzy on Ubuntu Noble.
-It uses official ROS binary images as the underlay and keeps source builds only
-for overlays that need private, unreleased, or patched packages.
-
-## Image layers
+This directory contains the Docker-first workflow for desktop, laptop, server,
+and Jetson use. The main image definition is one multi-stage Dockerfile with
+named targets:
 
 ```text
-ros:jazzy-ros-base-noble
-  -> ros2-jazzy:base
-    -> ros2-jazzy:extensions
-      -> ros2-jazzy:gui
-      -> ros2-jazzy:app
+base -> dev -> builder -> runtime
+          |       |         |
+          |       |         + robot-runtime
+          |       + bagtools
+          + jetson-dev
+          + gui
 ```
 
-- `base.Dockerfile` starts from the official ROS image and adds the project
-  user, common shell/runtime packages, and an entrypoint that sources ROS plus
-  optional overlay workspaces.
-- `extensions.Dockerfile` installs released ROS extension packages with apt.
-  It also has a `source` target for building `ros2-extra.repos` as an overlay
-  when apt packages are not enough.
-- `gui.Dockerfile` adds GUI/dev packages on top of the extension image.
-- `app.Dockerfile` is a multi-stage template for a future application source
-  workspace supplied as a BuildKit named context.
-- `compose.yaml` defines common runtime, bridge, GUI, and development services.
-
-Docker already stores and reuses image layers internally. Do not create one tar
-file per layer during normal development. Use tags and a registry when possible;
-use `docker save` tarballs only for offline image transfer.
+The normal underlay is `ros:jazzy-ros-base-noble`. The source-built chroot image
+remains a migration/reference path, not the production robot base.
 
 ## Build
 
-Build the normal binary-apt stack:
+Build the common amd64 stack for desktop/laptop/server work:
 
 ```bash
 ./docker/build.sh all
 ```
 
-Build only one image:
+Build individual targets:
 
 ```bash
-./docker/build.sh base
-./docker/build.sh extensions
-./docker/build.sh gui
+./docker/build.sh dev-amd64
+./docker/build.sh runtime-amd64
+./docker/build.sh bagtools-amd64
+./docker/build.sh jetson-dev-arm64
+./docker/build.sh robot-runtime-arm64
 ```
 
-Build the optional source-overlay extension image from `ros2-extra.repos`:
+Images get convenience local tags such as `ros2-jazzy:dev` and immutable-style
+tags such as `robot/ros2:robot-runtime-arm64-<gitsha>`. Set `ROS2_IMAGE_REPO` to
+your registry path and `ROS2_DOCKER_PUSH=1` when pushing:
 
 ```bash
-./docker/build.sh extensions-source
+ROS2_IMAGE_REPO=registry.example.com/robot/ros2 ROS2_DOCKER_PUSH=1 \
+  ./docker/build.sh robot-runtime-arm64
 ```
 
-Build an application runtime image from an external ROS workspace source tree:
+Do not deploy `latest` to robots. Use git-SHA tags for serious field tests.
+
+## Desktop And Laptop Development
+
+Open a dev shell with source mounted at `/workspaces/robot` and bags mounted at
+`/bags`:
 
 ```bash
-APP_SRC=/path/to/app_ws/src ./docker/build.sh app
+docker compose -f docker/compose.dev.yml run --rm dev
 ```
 
-By default the helper uses `docker buildx build --load`. Set
-`ROS2_DOCKER_PUSH=1` to push instead of loading locally.
-
-## Run
-
-Use the thin wrapper when you want the same X11, host networking, IPC, GPU, and
-persistent-container behavior as the existing sourcebuilt Docker helper:
+or:
 
 ```bash
-./docker/run.sh
-./docker/run.sh ros2 pkg list
-./docker/run.sh --gui rviz2
-./docker/run.sh --gui foxglove-studio
+make dev-shell
 ```
 
-Use Compose for repeatable service-style launches:
+Inside the container:
 
 ```bash
-docker compose -f docker/compose.yaml --profile runtime run --rm shell
-docker compose -f docker/compose.yaml --profile runtime up bridge
-docker compose -f docker/compose.yaml --profile dev run --rm dev
-docker compose -f docker/compose.yaml --profile gui run --rm gui
+colcon build --symlink-install
+ros2 doctor
 ```
 
-The run wrapper is the preferred path for GUI applications because it handles
-Xauthority setup more carefully than a static Compose file can.
+## GPU Desktop Overlay
 
-`docker/run.sh` forwards `ROS_DOMAIN_ID` and `RMW_IMPLEMENTATION` when they are
-set. For Compose launches, pass those variables explicitly with `docker compose
-run -e ...` or add a local Compose override file for your robot/network setup.
-
-## Smoke test
+Use the GPU overlay only on compatible NVIDIA desktop hosts:
 
 ```bash
+docker compose -f docker/compose.dev.yml -f docker/compose.gpu.yml run --rm dev
+```
+
+or:
+
+```bash
+make gpu-shell
+```
+
+## VS Code Dev Containers
+
+Open the repository in VS Code and choose **Reopen in Container**. The
+devcontainer uses `docker/compose.dev.yml`, service `dev`, and workspace folder
+`/workspaces/robot`. The GPU overlay is optional and is not required on the
+laptop.
+
+## Foxglove Bridge
+
+Run Foxglove Bridge as a separate service instead of baking it into robot launch
+files:
+
+```bash
+docker compose -f docker/compose.dev.yml up -d foxglove-bridge
+```
+
+or:
+
+```bash
+make foxglove
+```
+
+Default ROS domain IDs:
+
+```text
+10 = development
+20 = robot field tests
+30 = simulation
+40 = bag replay/regression
+```
+
+## Jetson Field Development
+
+Build or pull an arm64 Jetson development image, then run:
+
+```bash
+docker compose -f docker/compose.robot.yml run --rm jetson-dev
+```
+
+The Jetson dev service mounts the repo at `/workspaces/robot`, mounts host bags
+at `/bags`, uses host networking and IPC, and is intentionally privileged for
+early field development. Narrow device access later once the required hardware
+set is known.
+
+Inside the Jetson container:
+
+```bash
+colcon build --symlink-install --parallel-workers 2
+```
+
+Use `--parallel-workers 1` if the 8 GB Orin NX starts swapping.
+
+## Robot Runtime
+
+Robot runtime is separate from field development. It does not source-mount the
+repo and should use immutable image tags:
+
+```bash
+ROBOT_LAUNCH_CMD='ros2 launch robot_bringup robot.launch.py' \
+  docker compose -f docker/compose.robot.yml up -d robot-runtime foxglove-bridge
+```
+
+## Bags And Replay
+
+Host bag path convention:
+
+```text
+/data/rosbags/YYYY-MM-DD/site/robot/run_id/
+```
+
+Container path:
+
+```text
+/bags
+```
+
+Open bagtools:
+
+```bash
+docker compose -f docker/compose.bag.yml run --rm bagtools
+```
+
+Replay with clock:
+
+```bash
+docker compose -f docker/compose.bag.yml run --rm bagtools \
+  ros2 bag play /bags/YYYY-MM-DD/site/robot/run_id --clock
+```
+
+Replay configs live under `configs/replay` and should use `use_sim_time`.
+
+## Jetson NVIDIA Caveats
+
+Running Ubuntu 24.04 + ROS 2 Jazzy inside containers on a JetPack 6.x / Ubuntu
+22.04-based host is an explicit validation item. Expected likely OK:
+
+- ROS 2 nodes
+- Python/C++ colcon builds
+- Foxglove Bridge
+- bag record/play
+- networking
+- serial/CAN/I2C with mounted devices
+
+Test early and do not hide failures for:
+
+- CUDA
+- TensorRT
+- cuDNN
+- VPI
+- camera/ISP stack
+- hardware encoders/decoders
+- anything depending on L4T userspace libraries
+
+## Validation
+
+Desktop/laptop:
+
+```bash
+docker compose -f docker/compose.dev.yml run --rm dev ros2 doctor
 ./docker/smoke-test.sh
-ROS2_DOCKER_IMAGE=ros2-jazzy:gui ./docker/smoke-test.sh
+```
+
+GPU desktop:
+
+```bash
+docker compose -f docker/compose.dev.yml -f docker/compose.gpu.yml run --rm dev nvidia-smi
+```
+
+Jetson:
+
+```bash
+docker compose -f docker/compose.robot.yml run --rm jetson-dev ros2 run demo_nodes_cpp talker
+docker compose -f docker/compose.robot.yml up -d foxglove-bridge
+```
+
+Backend/server bag replay:
+
+```bash
+docker compose -f docker/compose.bag.yml run --rm bagtools ros2 bag info /bags/path/to/bag
 ```

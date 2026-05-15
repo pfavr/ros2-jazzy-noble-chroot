@@ -13,12 +13,13 @@ The default target is `ROS_DISTRO=jazzy` on `UBUNTU_CODENAME=noble`. Other combi
 Docker-first path:
 
 - Starts from official `ros:jazzy-ros-base-noble` binary images.
-- Builds separate base, extension, GUI/dev, and application image layers.
+- Builds one multi-stage `docker/Dockerfile` with named base, dev, runtime,
+  Jetson, bagtools, and GUI targets.
 - Installs released ROS extensions such as Foxglove Bridge, xacro, and
   `rosx_introspection` with apt by default.
 - Keeps source overlays available for private, unreleased, or patched packages.
-- Provides Compose profiles and run helpers for runtime, GUI, and development
-  containers.
+- Provides split Compose files for desktop/laptop dev, GPU overlay, Jetson
+  robot workflows, and bag replay.
 
 Source-built chroot path:
 
@@ -63,11 +64,21 @@ persistent-container behavior as the sourcebuilt Docker helper:
 Run common services with Compose:
 
 ```bash
-docker compose -f docker/compose.yaml --profile runtime run --rm shell
-docker compose -f docker/compose.yaml --profile runtime up bridge
-docker compose -f docker/compose.yaml --profile dev run --rm dev
-docker compose -f docker/compose.yaml --profile gui run --rm gui
+docker compose -f docker/compose.dev.yml run --rm dev
+docker compose -f docker/compose.dev.yml up -d foxglove-bridge
+docker compose -f docker/compose.bag.yml run --rm bagtools
 ```
+
+For Jetson field development and runtime:
+
+```bash
+./docker/build.sh jetson-dev-arm64 robot-runtime-arm64
+docker compose -f docker/compose.robot.yml run --rm jetson-dev
+docker compose -f docker/compose.robot.yml up -d robot-runtime foxglove-bridge
+```
+
+The Docker workflow uses fixed ROS domain conventions: `10` for development,
+`20` for robot field tests, `30` for simulation, and `40` for bag replay.
 
 The normal Docker workflow does not produce one tarball per layer. Docker stores
 and reuses layers internally. Use image tags and a registry when possible; use
@@ -157,7 +168,9 @@ Host checkout:
 .
 ├── rootfs/                 # Ubuntu Noble chroot, not committed
 ├── artifacts/              # Optional packed rootfs archives, not committed
-├── docker/                 # Docker-first layered image workflow
+├── docker/                 # Dockerfile, Compose files, and Docker helpers
+├── src/                    # Project ROS 2 source workspace
+├── configs/                # Robot, simulation, and replay configs
 ├── scripts/                # Host orchestration scripts
 ├── logs/                   # Per-step build_all.sh logs, not committed
 ├── build_all.sh            # Run the full build and smoke test

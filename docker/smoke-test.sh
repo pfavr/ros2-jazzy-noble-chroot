@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE=${ROS2_DOCKER_IMAGE:-ros2-jazzy:extensions}
+IMAGE=${ROS2_DOCKER_IMAGE:-ros2-jazzy:base}
 
 docker run --rm --network=host --ipc=host --init "${IMAGE}" bash -lc '
 set -euo pipefail

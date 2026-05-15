@@ -3,8 +3,11 @@
 .vscode
 
 artifacts
+bags
+datasets
 logs
 rootfs
+.cache
 
 **/__pycache__
 **/.pytest_cache
@@ -12,5 +15,9 @@ rootfs
 **/build
 **/install
 **/log
+**/.cache
+**/*.bag
+**/*.db3
+**/*.mcap
 **/*.pyc
 **/*.pyo

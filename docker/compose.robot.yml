@@ -1,0 +1,44 @@
+name: robot-field
+
+x-robot-common: &robot-common
+  network_mode: host
+  ipc: host
+  init: true
+  environment:
+    ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-20}
+  volumes:
+    - ${ROS_BAGS_DIR:-/data/rosbags}:/bags:rw
+
+services:
+  jetson-dev:
+    <<: *robot-common
+    image: ${ROS2_JETSON_DEV_IMAGE:-ros2-jazzy:jetson-dev}
+    platform: linux/arm64
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: jetson-dev
+    privileged: true
+    stdin_open: true
+    tty: true
+    working_dir: /workspaces/robot
+    volumes:
+      - ..:/workspaces/robot:rw
+      - ${ROS_BAGS_DIR:-/data/rosbags}:/bags:rw
+      - /dev:/dev
+    command: bash
+
+  foxglove-bridge:
+    <<: *robot-common
+    image: ${ROS2_JETSON_DEV_IMAGE:-ros2-jazzy:jetson-dev}
+    platform: linux/arm64
+    restart: unless-stopped
+    command: ros2 launch foxglove_bridge foxglove_bridge_launch.xml
+
+  robot-runtime:
+    <<: *robot-common
+    image: ${ROS2_ROBOT_RUNTIME_IMAGE:-ros2-jazzy:robot-runtime}
+    platform: linux/arm64
+    privileged: true
+    restart: unless-stopped
+    command: bash -lc "${ROBOT_LAUNCH_CMD:-ros2 launch robot_bringup robot.launch.py}"
