@@ -1,0 +1,53 @@
+name: ros2-jazzy-noble
+
+x-runtime-common: &runtime-common
+  network_mode: host
+  ipc: host
+  init: true
+  stdin_open: true
+  tty: true
+
+x-gui-common: &gui-common
+  <<: *runtime-common
+  security_opt:
+    - seccomp=unconfined
+  environment:
+    - DISPLAY
+    - XAUTHORITY=/tmp/.ros2-docker.Xauthority
+  volumes:
+    - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    - ${ROS2_DOCKER_XAUTHORITY:-${HOME}/.Xauthority}:/tmp/.ros2-docker.Xauthority:ro
+
+services:
+  shell:
+    <<: *runtime-common
+    image: ${ROS2_DOCKER_EXTENSIONS_TAG:-ros2-jazzy:extensions}
+    profiles: [runtime]
+    command: bash
+
+  bridge:
+    <<: *runtime-common
+    image: ${ROS2_DOCKER_EXTENSIONS_TAG:-ros2-jazzy:extensions}
+    profiles: [runtime]
+    command: ros2 launch foxglove_bridge foxglove_bridge_launch.xml port:=8765
+
+  dev:
+    <<: *runtime-common
+    image: ${ROS2_DOCKER_EXTENSIONS_TAG:-ros2-jazzy:extensions}
+    profiles: [dev]
+    working_dir: /workspace/ros2-jazzy-noble-chroot
+    volumes:
+      - ..:/workspace/ros2-jazzy-noble-chroot:rw
+    command: bash
+
+  gui:
+    <<: *gui-common
+    image: ${ROS2_DOCKER_GUI_TAG:-ros2-jazzy:gui}
+    profiles: [gui]
+    command: bash
+
+  app:
+    <<: *runtime-common
+    image: ${ROS2_DOCKER_APP_TAG:-ros2-jazzy:app}
+    profiles: [app]
+    command: bash

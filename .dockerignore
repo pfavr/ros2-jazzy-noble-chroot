@@ -1,0 +1,16 @@
+.git
+.gitignore
+.vscode
+
+artifacts
+logs
+rootfs
+
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/build
+**/install
+**/log
+**/*.pyc
+**/*.pyo

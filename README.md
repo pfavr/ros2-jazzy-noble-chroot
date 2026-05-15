@@ -1,10 +1,26 @@
 # ros2-jazzy-noble-chroot
 
-Build ROS 2 Jazzy from source inside an Ubuntu 24.04 Noble chroot, while keeping the host system mostly untouched. The host can be any amd64 Linux system with `sudo`, `debootstrap`, and chroot/mount support. Once built, the finished chroot can be packed into a single self-contained `.tar.zst` artifact and deployed on another amd64 host without cloning this repository.
+Build and run ROS 2 Jazzy on Ubuntu 24.04 Noble with two supported paths: a
+Docker-first layered image workflow based on official ROS binary images, and the
+original source-built chroot workflow. The Docker path is the recommended
+starting point for day-to-day development and deployment; the chroot path remains
+available when you need to rebuild the full ROS underlay from source.
 
 The default target is `ROS_DISTRO=jazzy` on `UBUNTU_CODENAME=noble`. Other combinations are not tested and may need different source manifests, apt sources, or rosdep handling.
 
 ## What this does
+
+Docker-first path:
+
+- Starts from official `ros:jazzy-ros-base-noble` binary images.
+- Builds separate base, extension, GUI/dev, and application image layers.
+- Installs released ROS extensions such as Foxglove Bridge, xacro, and
+  `rosx_introspection` with apt by default.
+- Keeps source overlays available for private, unreleased, or patched packages.
+- Provides Compose profiles and run helpers for runtime, GUI, and development
+  containers.
+
+Source-built chroot path:
 
 - Bootstraps an Ubuntu Noble root filesystem under `rootfs/`.
 - Installs ROS 2 Jazzy source-build dependencies inside the chroot.
@@ -16,9 +32,48 @@ The default target is `ROS_DISTRO=jazzy` on `UBUNTU_CODENAME=noble`. Other combi
 
 The checkout can live anywhere on the host. Inside the chroot, the ROS workspace always lives at `/opt/ros2_ws`, which keeps build paths stable across machines.
 
-The repository is intentionally small: scripts, documentation, VS Code settings, and license text. Generated root filesystems, archives, build logs, and ROS source checkouts stay out of Git.
+The repository is intentionally small: scripts, Docker definitions,
+documentation, VS Code settings, and license text. Generated root filesystems,
+archives, build logs, and ROS source checkouts stay out of Git.
 
 ## Quick start
+
+### Docker-first layered images
+
+Install Docker Engine with Buildx and the Compose plugin, then build the default
+binary-apt image stack:
+
+```bash
+./docker/build.sh all
+```
+
+Smoke-test the extension image:
+
+```bash
+./docker/smoke-test.sh
+```
+
+Enter a ROS-ready shell with the same host networking, IPC, X11, GPU, and
+persistent-container behavior as the sourcebuilt Docker helper:
+
+```bash
+./docker/run.sh
+```
+
+Run common services with Compose:
+
+```bash
+docker compose -f docker/compose.yaml --profile runtime run --rm shell
+docker compose -f docker/compose.yaml --profile runtime up bridge
+docker compose -f docker/compose.yaml --profile dev run --rm dev
+docker compose -f docker/compose.yaml --profile gui run --rm gui
+```
+
+The normal Docker workflow does not produce one tarball per layer. Docker stores
+and reuses layers internally. Use image tags and a registry when possible; use
+`docker save` only when you need offline transfer of a complete image.
+
+### Source-built chroot
 
 Install host prerequisites first. On Debian/Ubuntu hosts:
 
@@ -79,7 +134,7 @@ ros2 run demo_nodes_cpp talker
 ros2 run demo_nodes_py listener
 ```
 
-Check the extra source-built tools:
+Check the extra tools in the source-built chroot:
 
 ```bash
 ros2 pkg prefix foxglove_bridge
@@ -102,6 +157,7 @@ Host checkout:
 .
 ├── rootfs/                 # Ubuntu Noble chroot, not committed
 ├── artifacts/              # Optional packed rootfs archives, not committed
+├── docker/                 # Docker-first layered image workflow
 ├── scripts/                # Host orchestration scripts
 ├── logs/                   # Per-step build_all.sh logs, not committed
 ├── build_all.sh            # Run the full build and smoke test
@@ -303,7 +359,11 @@ After that, the everyday command after a reboot or in a new terminal is simply:
 cd ros2-jazzy-noble-rootfs-YYYYMMDD && sudo ./ros2-chroot.sh
 ```
 
-### Use with Docker
+### Legacy sourcebuilt Docker artifact
+
+The recommended Docker workflow lives under `docker/` and uses official ROS
+binary images as reusable layers. The packaging flow below is still useful when
+you specifically need to turn the source-built chroot into a Docker image.
 
 `scripts/pack-docker.sh` writes four files under `artifacts/`:
 
