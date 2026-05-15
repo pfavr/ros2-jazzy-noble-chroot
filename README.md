@@ -69,6 +69,13 @@ docker compose -f docker/compose.dev.yml up -d foxglove-bridge
 docker compose -f docker/compose.bag.yml run --rm bagtools
 ```
 
+On NVIDIA desktop hosts, install and configure the NVIDIA Container Toolkit,
+then validate GPU access with:
+
+```bash
+make gpu-check
+```
+
 For Jetson field development and runtime:
 
 ```bash

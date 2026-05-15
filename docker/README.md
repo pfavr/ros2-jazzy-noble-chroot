@@ -81,6 +81,28 @@ or:
 make gpu-shell
 ```
 
+The host must have the NVIDIA driver and NVIDIA Container Toolkit configured for
+Docker. A quick validation command is:
+
+```bash
+make gpu-check
+```
+
+If Docker reports `could not select device driver "nvidia" with capabilities:
+[[gpu]]`, install and configure the toolkit on the host:
+
+```bash
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list >/dev/null
+sudo apt-get update
+sudo apt-get install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
 ## VS Code Dev Containers
 
 Open the repository in VS Code and choose **Reopen in Container**. The

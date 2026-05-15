@@ -6,7 +6,7 @@ COMPOSE_GPU := docker compose -f docker/compose.dev.yml -f docker/compose.gpu.ym
 COMPOSE_ROBOT := docker compose -f docker/compose.robot.yml
 COMPOSE_BAG := docker compose -f docker/compose.bag.yml
 
-.PHONY: help build-base build-dev-amd64 build-bagtools-amd64 build-jetson-dev-arm64 build-robot-runtime-arm64 build-runtime-amd64 build-gui-amd64 build-all dev-shell gpu-shell foxglove robot-dev-shell robot-up robot-down bag-shell bag-play smoke
+.PHONY: help build-base build-dev-amd64 build-bagtools-amd64 build-jetson-dev-arm64 build-robot-runtime-arm64 build-runtime-amd64 build-gui-amd64 build-all dev-shell gpu-shell gpu-check foxglove robot-dev-shell robot-up robot-down bag-shell bag-play smoke
 
 help:
 	@printf '%s\n' \
@@ -18,6 +18,7 @@ help:
 	  '  build-robot-runtime-arm64 Build Jetson robot runtime image' \
 	  '  dev-shell                 Open desktop/laptop dev shell' \
 	  '  gpu-shell                 Open dev shell with NVIDIA GPU overlay' \
+	  '  gpu-check                 Run nvidia-smi through the GPU Compose overlay' \
 	  '  foxglove                  Run Foxglove Bridge service' \
 	  '  robot-dev-shell           Open Jetson dev shell' \
 	  '  robot-up                  Start robot-runtime and Foxglove Bridge' \
@@ -53,6 +54,9 @@ dev-shell:
 
 gpu-shell:
 	$(COMPOSE_GPU) run --rm dev
+
+gpu-check:
+	$(COMPOSE_GPU) run --rm dev nvidia-smi
 
 foxglove:
 	$(COMPOSE_DEV) up -d foxglove-bridge
